@@ -15,9 +15,12 @@ function parsePadding(raw: string): [string, string, string, string] {
 }
 
 export function LayoutSection() {
-  const rect = useEditorStore(s => s.selectedRect)
+  const selectedIds = useEditorStore(s => s.selectedIds)
+  const selectedElements = useEditorStore(s => s.selectedElements)
   const styles = useEditorStore(s => s.selectedStyles)
-  const selectedId = useEditorStore(s => s.selectedId)
+
+  const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
+  const rect = selectedId ? selectedElements[selectedId]?.rect : null
 
   const x = Math.round(rect?.x ?? 0)
   const y = Math.round(rect?.y ?? 0)

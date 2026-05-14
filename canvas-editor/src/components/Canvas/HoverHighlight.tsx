@@ -8,10 +8,10 @@ interface HoverHighlightProps {
 export function HoverHighlight({ iframeRef }: HoverHighlightProps) {
   const hoveredId = useEditorStore(s => s.hoveredId)
   const hoveredRect = useEditorStore(s => s.hoveredRect)
-  const selectedId = useEditorStore(s => s.selectedId)
+  const selectedIds = useEditorStore(s => s.selectedIds)
   const viewport = useEditorStore(s => s.viewport)
 
-  if (!hoveredId || !hoveredRect || hoveredId === selectedId || !iframeRef.current) return null
+  if (!hoveredId || !hoveredRect || selectedIds.includes(hoveredId) || !iframeRef.current) return null
 
   const iframeEl = iframeRef.current
   const iframeRect = iframeEl.getBoundingClientRect()

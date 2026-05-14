@@ -96,7 +96,19 @@ export function extractHTML(text: string): string | null {
   return null
 }
 
-export function buildFragmentSystemPrompt(): string {
+export function buildFragmentSystemPrompt(multiCount?: number): string {
+  if (multiCount && multiCount > 1) {
+    return `你是 SpecFlow 画布编辑器的 AI 助手。用户会给你 ${multiCount} 段 HTML 元素片段和修改指令。
+请按照指令分别修改每个元素片段，并返回修改后的 HTML 片段。
+
+规则：
+- 按顺序为每个元素返回修改后的 HTML，每段用 \`\`\`html 代码块包裹
+- 保持 Tailwind CSS 类名风格
+- 只返回修改后的元素片段（不要返回完整页面）
+- 保持每个元素的根标签不变
+- 不要解释，只返回代码
+- 一共返回 ${multiCount} 段代码块，顺序和输入一致`
+  }
   return `你是 SpecFlow 画布编辑器的 AI 助手。用户会给你一段 HTML 元素片段和修改指令。
 请按照指令修改这个元素片段，并返回修改后的 HTML 片段。
 
@@ -131,6 +143,33 @@ ${elementHtml}
 \`\`\`
 
 修改指令: ${userMessage}`
+}
+
+export function buildMultiFragmentUserPrompt(
+  elements: { html: string; tag: string; label: string }[],
+  userMessage: string,
+): string {
+  const parts = elements.map((el, i) =>
+    `元素 ${i + 1} (<${el.tag}>, 名称: "${el.label}"):
+\`\`\`html
+${el.html}
+\`\`\``
+  )
+  return `当前选中了 ${elements.length} 个元素，请对每个元素应用同样的修改指令。
+
+${parts.join('\n\n')}
+
+修改指令: ${userMessage}`
+}
+
+export function extractAllHTML(text: string): string[] {
+  const results: string[] = []
+  const regex = /```html\s*\n([\s\S]*?)```/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    results.push(match[1].trim())
+  }
+  return results
 }
 
 export function buildFullPageUserPrompt(

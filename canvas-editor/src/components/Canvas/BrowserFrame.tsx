@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useCallback, useRef, type ReactNode } from 'react'
+import { useEditorStore } from '../../stores/editor-store'
 
 interface BrowserFrameProps {
   deviceWidth: number
@@ -7,12 +8,33 @@ interface BrowserFrameProps {
 }
 
 export function BrowserFrame({ deviceWidth, pageSlug, children }: BrowserFrameProps) {
+  const setIframeHeight = useEditorStore(s => s.setIframeHeight)
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    const store = useEditorStore.getState()
+    dragRef.current = { startY: e.clientY, startH: store.iframeHeight }
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+  }, [])
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return
+    const zoom = useEditorStore.getState().viewport.zoom
+    const delta = (e.clientY - dragRef.current.startY) / zoom
+    setIframeHeight(dragRef.current.startH + delta)
+  }, [setIframeHeight])
+
+  const onPointerUp = useCallback(() => {
+    dragRef.current = null
+  }, [])
+
   return (
     <div
       className="bg-white rounded-xl shadow-2xl shadow-black/[0.06] border border-surface-3/60 overflow-hidden shrink-0"
       style={{ width: deviceWidth }}
     >
-      {/* Browser chrome */}
       <div className="bg-surface-2 px-4 py-2 flex items-center gap-3 border-b border-surface-3">
         <div className="flex gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
@@ -29,9 +51,18 @@ export function BrowserFrame({ deviceWidth, pageSlug, children }: BrowserFramePr
         </div>
       </div>
 
-      {/* Page content area */}
       <div className="relative">
         {children}
+      </div>
+
+      <div
+        className="h-2 bg-surface-2 border-t border-surface-3 cursor-row-resize flex items-center justify-center hover:bg-surface-3 transition-colors group"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <div className="w-8 h-[3px] rounded-full bg-ink-4/40 group-hover:bg-ink-3 transition-colors" />
       </div>
     </div>
   )

@@ -85,12 +85,12 @@ function getTagBadge(tag: string, isSelected: boolean, hasChildren: boolean) {
 
 function LayerNode({ node, depth }: { node: DOMNode; depth: number }) {
   const [expanded, setExpanded] = useState(depth < 3)
-  const selectedId = useEditorStore(s => s.selectedId)
+  const selectedIds = useEditorStore(s => s.selectedIds)
   const selectElement = useEditorStore(s => s.selectElement)
   const hoverElement = useEditorStore(s => s.hoverElement)
 
   const hasChildren = node.children.length > 0
-  const isSelected = selectedId === node.id
+  const isSelected = selectedIds.includes(node.id)
 
   const indentMap: Record<number, string> = {
     1: 'pl-5',
@@ -107,7 +107,7 @@ function LayerNode({ node, depth }: { node: DOMNode; depth: number }) {
         className={`layer-item px-2 py-1.5 ${plClass} flex items-center gap-1.5 cursor-pointer ${
           isSelected ? 'active' : ''
         }`}
-        onClick={() => selectElement(node.id, node.rect, node.label)}
+        onClick={(e) => selectElement(node.id, node.rect, node.label, e.shiftKey || e.metaKey || e.ctrlKey)}
         onMouseEnter={() => hoverElement(node.id, node.rect)}
         onMouseLeave={() => hoverElement(null)}
       >

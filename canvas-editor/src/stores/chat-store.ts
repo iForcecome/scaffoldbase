@@ -2,9 +2,11 @@ import { create } from 'zustand'
 import {
   streamChat,
   extractHTML,
+  extractAllHTML,
   buildFragmentSystemPrompt,
   buildFullPageSystemPrompt,
   buildFragmentUserPrompt,
+  buildMultiFragmentUserPrompt,
   buildFullPageUserPrompt,
   type ChatMessage as APIChatMessage,
 } from '../services/ai-service'
@@ -49,7 +51,8 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
     const page = editorStore.getActivePage()
     if (!page) return
 
-    const selectedId = editorStore.selectedId
+    const selectedIds = editorStore.selectedIds
+    const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -70,9 +73,40 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
 
     try {
       let apiMessages: APIChatMessage[]
-      let isFragmentMode = false
+      let fragmentIds: string[] = []
 
-      if (selectedId) {
+      if (selectedIds.length > 1) {
+        const elementData: { id: string; html: string; tag: string; label: string }[] = []
+        for (const id of selectedIds) {
+          try {
+            const resp = await requestFromBridge<{ html: string; tag: string; label: string }>(
+              { type: 'get-element-html', id },
+              'element-html',
+            )
+            elementData.push({
+              id,
+              html: stripBridgeAttrs(resp.html),
+              tag: resp.tag || 'div',
+              label: resp.label || '元素',
+            })
+          } catch {
+            // skip elements we can't fetch
+          }
+        }
+
+        if (elementData.length > 0) {
+          fragmentIds = elementData.map(e => e.id)
+          apiMessages = [
+            { role: 'system', content: buildFragmentSystemPrompt(elementData.length) },
+            { role: 'user', content: buildMultiFragmentUserPrompt(elementData, text) },
+          ]
+        } else {
+          apiMessages = [
+            { role: 'system', content: buildFullPageSystemPrompt() },
+            { role: 'user', content: buildFullPageUserPrompt(page.html, text) },
+          ]
+        }
+      } else if (selectedId) {
         try {
           const resp = await requestFromBridge<{ html: string; tag: string; label: string }>(
             { type: 'get-element-html', id: selectedId },
@@ -81,11 +115,11 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
           const cleanHtml = stripBridgeAttrs(resp.html)
           const elementInfo = { tag: resp.tag || 'div', label: resp.label || '元素' }
 
+          fragmentIds = [selectedId]
           apiMessages = [
             { role: 'system', content: buildFragmentSystemPrompt() },
             { role: 'user', content: buildFragmentUserPrompt(cleanHtml, text, elementInfo) },
           ]
-          isFragmentMode = true
         } catch {
           apiMessages = [
             { role: 'system', content: buildFullPageSystemPrompt() },
@@ -106,15 +140,18 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
         set({ streamingContent: fullContent })
       }
 
-      const html = extractHTML(fullContent)
       let htmlApplied = false
 
-      if (html) {
-        editorStore.pushUndo()
-
-        if (isFragmentMode && selectedId) {
-          sendBridgeMessage({ type: 'replace-element-html', id: selectedId, html })
-
+      if (fragmentIds.length > 1) {
+        const htmlBlocks = extractAllHTML(fullContent)
+        if (htmlBlocks.length > 0) {
+          editorStore.pushUndo()
+          for (let i = 0; i < fragmentIds.length; i++) {
+            const html = htmlBlocks[i] || htmlBlocks[htmlBlocks.length - 1]
+            if (html) {
+              sendBridgeMessage({ type: 'replace-element-html', id: fragmentIds[i], html })
+            }
+          }
           try {
             const pageResp = await requestFromBridge<{ html: string }>(
               { type: 'get-page-html' },
@@ -123,13 +160,34 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
             suppressNextIframeReload()
             editorStore.updatePageHTML(page.id, pageResp.html)
           } catch {
-            // iframe sync failed but visual update already applied
+            // visual updates already applied
           }
-        } else {
-          editorStore.updatePageHTML(page.id, html)
+          htmlApplied = true
         }
-
-        htmlApplied = true
+      } else if (fragmentIds.length === 1) {
+        const html = extractHTML(fullContent)
+        if (html) {
+          editorStore.pushUndo()
+          sendBridgeMessage({ type: 'replace-element-html', id: fragmentIds[0], html })
+          try {
+            const pageResp = await requestFromBridge<{ html: string }>(
+              { type: 'get-page-html' },
+              'page-html',
+            )
+            suppressNextIframeReload()
+            editorStore.updatePageHTML(page.id, pageResp.html)
+          } catch {
+            // visual update already applied
+          }
+          htmlApplied = true
+        }
+      } else {
+        const html = extractHTML(fullContent)
+        if (html) {
+          editorStore.pushUndo()
+          editorStore.updatePageHTML(page.id, html)
+          htmlApplied = true
+        }
       }
 
       const assistantMsg: ChatMessage = {

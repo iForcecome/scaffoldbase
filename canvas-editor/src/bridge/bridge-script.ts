@@ -3,6 +3,7 @@ export function getBridgeScript(): string {
 (function() {
   var BRIDGE_ATTR = 'data-sf-id';
   var idCounter = 0;
+  var mode = 'design';
 
   function assignIds(root) {
     var walk = function(el) {
@@ -202,17 +203,34 @@ export function getBridgeScript(): string {
   }
 
   document.addEventListener('click', function(e) {
+    if (mode === 'preview') {
+      var link = e.target.closest('a[href]');
+      if (link) {
+        var href = link.getAttribute('href');
+        if (href && href.indexOf('#page:') === 0) {
+          e.preventDefault();
+          parent.postMessage({ type: 'navigate-page', pageId: href.slice(6) }, '*');
+        } else {
+          e.preventDefault();
+        }
+      }
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     var target = e.target.closest('[' + BRIDGE_ATTR + ']');
     if (target) {
       var id = target.getAttribute(BRIDGE_ATTR);
       var rect = target.getBoundingClientRect();
-      parent.postMessage({ type: 'element-click', id: id, rect: rectToObj(rect), label: inferLabel(target) }, '*');
+      parent.postMessage({
+        type: 'element-click', id: id, rect: rectToObj(rect), label: inferLabel(target),
+        shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey
+      }, '*');
     }
   }, true);
 
   document.addEventListener('mousemove', function(e) {
+    if (mode === 'preview') return;
     var target = e.target.closest('[' + BRIDGE_ATTR + ']');
     if (target) {
       var id = target.getAttribute(BRIDGE_ATTR);
@@ -222,10 +240,25 @@ export function getBridgeScript(): string {
   }, true);
 
   document.addEventListener('mouseleave', function() {
+    if (mode === 'preview') return;
     parent.postMessage({ type: 'element-hover', id: null, rect: null }, '*');
   });
 
+  document.addEventListener('wheel', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      parent.postMessage({
+        type: 'iframe-wheel',
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey
+      }, '*');
+    }
+  }, { passive: false, capture: true });
+
   document.addEventListener('dblclick', function(e) {
+    if (mode === 'preview') return;
     e.preventDefault();
     e.stopPropagation();
   }, true);
@@ -309,6 +342,10 @@ export function getBridgeScript(): string {
       }
       case 'request-tree': {
         sendTree();
+        break;
+      }
+      case 'set-mode': {
+        mode = data.mode || 'design';
         break;
       }
     }

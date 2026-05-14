@@ -8,7 +8,7 @@ export function ZoomControls() {
   const zoomPercent = Math.round(viewport.zoom * 100)
 
   return (
-    <div className="absolute top-4 left-4 z-20 zoom-control rounded-lg flex items-center gap-1 p-1">
+    <div className="absolute top-4 left-4 z-20 zoom-control rounded-lg flex items-center gap-1 p-1" data-no-canvas-wheel>
       <button
         className="w-7 h-7 rounded flex items-center justify-center hover:bg-surface-2 transition-colors text-ink-2"
         onClick={() => zoomTo(viewport.zoom - 0.1)}

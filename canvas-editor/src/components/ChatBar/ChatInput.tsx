@@ -1,24 +1,35 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
 import { useChatStore } from '../../stores/chat-store'
 import { getAIConfig } from '../../services/ai-service'
 import { SettingsPopover } from './SettingsPopover'
 
-export function ChatInput() {
+interface ChatInputProps {
+  historyVisible: boolean
+  canToggleHistory: boolean
+  onToggleHistory: () => void
+}
+
+export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }: ChatInputProps) {
   const [text, setText] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const settingsAnchorRef = useRef<HTMLSpanElement>(null)
 
-  const selectedId = useEditorStore(s => s.selectedId)
-  const selectedLabel = useEditorStore(s => s.selectedLabel)
+  const selectedIds = useEditorStore(s => s.selectedIds)
+  const selectedElements = useEditorStore(s => s.selectedElements)
   const selectElement = useEditorStore(s => s.selectElement)
 
   const sendMessage = useChatStore(s => s.sendMessage)
   const isStreaming = useChatStore(s => s.isStreaming)
   const stopStreaming = useChatStore(s => s.stopStreaming)
 
-  const displayLabel = selectedLabel || selectedId
+  useEffect(() => {
+    if (selectedIds.length > 0 && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [selectedIds])
+
   const config = getAIConfig()
   const modelName = config.model || 'deepseek-chat'
 
@@ -48,29 +59,50 @@ export function ChatInput() {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
   }
 
+  const removeSelection = (id: string) => {
+    selectElement(id, undefined, undefined, true)
+  }
+
   return (
     <div className="max-w-2xl mx-auto pointer-events-auto">
       <div className="chat-float glass rounded-2xl overflow-hidden">
-        <div className="flex items-end gap-3 p-3">
-          {selectedId && (
-            <div className="flex items-center gap-1.5 pb-1.5 shrink-0">
-              <div className="flex items-center gap-1 bg-brand-50 text-brand-600 text-xs font-medium pl-1.5 pr-2.5 py-1 rounded-lg border border-brand-200/50">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/>
-                </svg>
-                {displayLabel}
-                <button
-                  className="ml-0.5 w-3.5 h-3.5 rounded-full hover:bg-brand-100 flex items-center justify-center"
-                  onClick={() => selectElement(null)}
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" d="M6 18 18 6M6 6l12 12"/>
-                  </svg>
-                </button>
-              </div>
+        {selectedIds.length > 0 && (
+          <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-0 overflow-hidden">
+            <div className="flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar">
+              {selectedIds.map(id => {
+                const el = selectedElements[id]
+                const label = el?.label || id
+                return (
+                  <div key={id} className="flex items-center gap-1 bg-brand-50 text-brand-600 text-xs font-medium pl-1.5 pr-1 py-0.5 rounded-md border border-brand-200/50 shrink-0">
+                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/>
+                    </svg>
+                    <span className="max-w-24 truncate text-[11px]">{label}</span>
+                    <button
+                      className="w-3.5 h-3.5 rounded-full hover:bg-brand-100 flex items-center justify-center shrink-0"
+                      onClick={() => removeSelection(id)}
+                    >
+                      <svg className="w-2 h-2" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" d="M6 18 18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-          )}
+            <button
+              className="w-4 h-4 rounded-full hover:bg-surface-2 flex items-center justify-center text-ink-3 shrink-0"
+              onClick={() => selectElement(null)}
+              title="清除所有选中"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" d="M6 18 18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        )}
 
+        <div className="flex items-end gap-3 p-3 pt-2">
           <div className="flex-1 min-w-0">
             <textarea
               ref={textareaRef}
@@ -119,6 +151,24 @@ export function ChatInput() {
 
         <div className="flex items-center justify-between px-3 pb-2 pt-0 relative">
           <div className="flex items-center gap-3 text-[11px] text-ink-3">
+            {canToggleHistory && (
+              <span
+                className="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors"
+                onClick={onToggleHistory}
+                title={historyVisible ? '收起对话' : '展开对话'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.2 48.2 0 0 0 5.887-.512c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.4 48.4 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/>
+                </svg>
+                对话记录
+                <svg
+                  className={`w-2.5 h-2.5 transition-transform ${historyVisible ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" d="m4.5 15.75 7.5-7.5 7.5 7.5"/>
+                </svg>
+              </span>
+            )}
             <span
               ref={settingsAnchorRef}
               className="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors"

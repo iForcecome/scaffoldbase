@@ -17,61 +17,80 @@ const handles = [
 ] as const
 
 export function SelectionOverlay({ iframeRef }: SelectionOverlayProps) {
-  const selectedId = useEditorStore(s => s.selectedId)
-  const selectedLabel = useEditorStore(s => s.selectedLabel)
-  const selectedRect = useEditorStore(s => s.selectedRect)
+  const selectedIds = useEditorStore(s => s.selectedIds)
+  const selectedElements = useEditorStore(s => s.selectedElements)
   const viewport = useEditorStore(s => s.viewport)
 
-  if (!selectedId || !selectedRect || !iframeRef.current) return null
+  if (selectedIds.length === 0 || !iframeRef.current) return null
 
   const iframeEl = iframeRef.current
   const iframeRect = iframeEl.getBoundingClientRect()
-
-  const x = iframeRect.left + selectedRect.x * viewport.zoom
-  const y = iframeRect.top + selectedRect.y * viewport.zoom
-  const w = selectedRect.width * viewport.zoom
-  const h = selectedRect.height * viewport.zoom
-
-  const displayLabel = selectedLabel || selectedId
+  const primaryId = selectedIds[selectedIds.length - 1]
+  const isSingle = selectedIds.length === 1
 
   return (
-    <div
-      className="fixed pointer-events-none z-50"
-      style={{ left: x, top: y, width: w, height: h }}
-    >
-      <div className="absolute inset-0 border-2 border-[#4c6ef5] rounded-[2px]" />
-      <div className="absolute -inset-[5px] border border-dashed border-[#4c6ef5] rounded-md" />
+    <>
+      {selectedIds.map(id => {
+        const el = selectedElements[id]
+        if (!el?.rect) return null
 
-      <div
-        className="absolute -left-[3px] whitespace-nowrap pointer-events-none"
-        style={{
-          top: -26,
-          background: '#4c6ef5',
-          color: '#fff',
-          fontSize: 11,
-          fontWeight: 600,
-          padding: '2px 8px',
-          borderRadius: '4px 4px 0 0',
-          lineHeight: '18px',
-        }}
-      >
-        {displayLabel}
-      </div>
+        const x = iframeRect.left + el.rect.x * viewport.zoom
+        const y = iframeRect.top + el.rect.y * viewport.zoom
+        const w = el.rect.width * viewport.zoom
+        const h = el.rect.height * viewport.zoom
+        const isPrimary = id === primaryId
+        const displayLabel = el.label || id
 
-      {handles.map(h => (
-        <div
-          key={h.pos}
-          className="absolute pointer-events-auto"
-          style={{
-            ...h.style as React.CSSProperties,
-            width: 8,
-            height: 8,
-            background: '#fff',
-            border: '2px solid #4c6ef5',
-            borderRadius: 2,
-          }}
-        />
-      ))}
-    </div>
+        return (
+          <div
+            key={id}
+            className="fixed pointer-events-none z-50"
+            style={{ left: x, top: y, width: w, height: h }}
+          >
+            <div
+              className="absolute inset-0 rounded-[2px]"
+              style={{
+                border: isPrimary ? '2px solid #4c6ef5' : '2px solid #4c6ef5',
+                opacity: isPrimary ? 1 : 0.7,
+              }}
+            />
+            {isPrimary && (
+              <div className="absolute -inset-[5px] border border-dashed border-[#4c6ef5] rounded-md" />
+            )}
+
+            <div
+              className="absolute -left-[3px] whitespace-nowrap pointer-events-none"
+              style={{
+                top: -26,
+                background: isPrimary ? '#4c6ef5' : '#748ffc',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: '4px 4px 0 0',
+                lineHeight: '18px',
+              }}
+            >
+              {displayLabel}
+            </div>
+
+            {(isSingle || isPrimary) && handles.map(h => (
+              <div
+                key={h.pos}
+                className="absolute pointer-events-auto"
+                style={{
+                  ...h.style as React.CSSProperties,
+                  width: 8,
+                  height: 8,
+                  background: '#fff',
+                  border: '2px solid #4c6ef5',
+                  borderRadius: 2,
+                }}
+              />
+            ))}
+          </div>
+        )
+      })}
+    </>
   )
 }

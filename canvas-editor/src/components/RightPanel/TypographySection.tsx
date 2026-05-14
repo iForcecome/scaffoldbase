@@ -1,7 +1,7 @@
 import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
 
 export function TypographySection() {
-  const selectedId = useEditorStore(s => s.selectedId)
+  const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
   const styles = useEditorStore(s => s.selectedStyles)
 
   const fontSize = styles?.fontSize ?? ''

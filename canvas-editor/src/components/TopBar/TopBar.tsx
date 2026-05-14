@@ -1,5 +1,5 @@
 import {
-  MousePointer2, ZoomIn, Square, Type, Plus,
+  MousePointer2, ZoomIn, Square, Type, Plus, Play,
   Monitor, Smartphone, Undo2, Redo2, Download,
   FlaskConical,
 } from 'lucide-react'
@@ -11,6 +11,7 @@ const tools: { id: Tool; icon: typeof MousePointer2; label: string; key: string 
   { id: 'marquee', icon: Square, label: '框选', key: 'M' },
   { id: 'text', icon: Type, label: '编辑文本', key: 'T' },
   { id: 'insert', icon: Plus, label: '插入组件', key: 'I' },
+  { id: 'preview', icon: Play, label: '预览', key: 'P' },
 ]
 
 const devices: { id: Device; icon: typeof Monitor; label: string }[] = [
@@ -21,7 +22,6 @@ const devices: { id: Device; icon: typeof Monitor; label: string }[] = [
 export function TopBar() {
   const pages = useEditorStore(s => s.pages)
   const activePageId = useEditorStore(s => s.activePageId)
-  const setActivePage = useEditorStore(s => s.setActivePage)
   const activeTool = useEditorStore(s => s.activeTool)
   const setTool = useEditorStore(s => s.setTool)
   const device = useEditorStore(s => s.device)
@@ -56,12 +56,14 @@ export function TopBar() {
         <div className="flex items-center bg-surface-1 rounded-lg p-0.5 gap-0.5">
           {tools.map((t, i) => (
             <span key={t.id} className="contents">
-              {i === 3 && <div className="w-px h-5 bg-surface-3 mx-1" />}
+              {(i === 3 || t.id === 'preview') && <div className="w-px h-5 bg-surface-3 mx-1" />}
               <button
                 className={`relative group w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
-                  activeTool === t.id ? 'bg-brand-600/10 text-brand-600' : 'hover:bg-black/5 text-ink-1'
+                  activeTool === t.id
+                    ? t.id === 'preview' ? 'bg-green-500/10 text-green-600' : 'bg-brand-600/10 text-brand-600'
+                    : 'hover:bg-black/5 text-ink-1'
                 }`}
-                onClick={() => setTool(t.id)}
+                onClick={() => setTool(activeTool === 'preview' && t.id === 'preview' ? 'select' : t.id)}
               >
                 <t.icon className="w-4 h-4" />
                 <span className="absolute bottom-[-32px] left-1/2 -translate-x-1/2 bg-ink-0 text-white text-[11px] px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
@@ -75,25 +77,6 @@ export function TopBar() {
 
       {/* Right Actions */}
       <div className="flex items-center gap-2">
-        {/* Page switcher */}
-        <div className="flex items-center bg-surface-1 rounded-lg p-0.5 text-xs">
-          {pages.map(p => (
-            <button
-              key={p.id}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                activePageId === p.id
-                  ? 'bg-white shadow-sm text-ink-0'
-                  : 'text-ink-3 hover:text-ink-1'
-              }`}
-              onClick={() => setActivePage(p.id)}
-            >
-              {p.title}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px h-5 bg-surface-3" />
-
         {/* Device toggle */}
         <div className="flex items-center bg-surface-1 rounded-lg p-0.5">
           {devices.map(d => (
