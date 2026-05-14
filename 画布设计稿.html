@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecFlow — 画布工作台设计稿</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+      colors: {
+        brand: { 50:'#f0f4ff', 100:'#dbe4ff', 200:'#bac8ff', 300:'#91a7ff', 400:'#748ffc', 500:'#5c7cfa', 600:'#4c6ef5', 700:'#4263eb', 800:'#3b5bdb', 900:'#364fc7' },
+        surface: { 0:'#ffffff', 1:'#f8f9fc', 2:'#f1f3f9', 3:'#e9ecf5', 4:'#dde1ed' },
+        ink: { 0:'#0f172a', 1:'#334155', 2:'#64748b', 3:'#94a3b8', 4:'#cbd5e1' },
+        canvas: { bg: '#f5f5f7', grid: '#e8e8ec' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+
+  .glass { background: rgba(255,255,255,0.82); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); }
+  .glass-dark { background: rgba(15,23,42,0.88); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); }
+
+  .canvas-grid {
+    background-image:
+      radial-gradient(circle, #d1d5db 0.8px, transparent 0.8px);
+    background-size: 24px 24px;
+  }
+
+  .selected-element {
+    outline: 2px solid #4c6ef5;
+    outline-offset: 3px;
+    position: relative;
+  }
+  .selected-element::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border: 1px dashed #4c6ef5;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+
+  .resize-handle {
+    width: 8px; height: 8px;
+    background: #fff;
+    border: 2px solid #4c6ef5;
+    border-radius: 2px;
+    position: absolute;
+    z-index: 10;
+  }
+  .resize-handle.tl { top: -7px; left: -7px; cursor: nw-resize; }
+  .resize-handle.tr { top: -7px; right: -7px; cursor: ne-resize; }
+  .resize-handle.bl { bottom: -7px; left: -7px; cursor: sw-resize; }
+  .resize-handle.br { bottom: -7px; right: -7px; cursor: se-resize; }
+  .resize-handle.tm { top: -7px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+  .resize-handle.bm { bottom: -7px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+  .resize-handle.ml { top: 50%; left: -7px; transform: translateY(-50%); cursor: w-resize; }
+  .resize-handle.mr { top: 50%; right: -7px; transform: translateY(-50%); cursor: e-resize; }
+
+  .element-label {
+    position: absolute;
+    top: -26px;
+    left: -3px;
+    background: #4c6ef5;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px 4px 0 0;
+    white-space: nowrap;
+    pointer-events: none;
+    line-height: 18px;
+  }
+
+  .hover-highlight {
+    transition: outline 0.15s ease;
+  }
+  .hover-highlight:hover {
+    outline: 1.5px solid #91a7ff;
+    outline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .chat-float {
+    box-shadow: 0 -4px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+
+  .suggestion-pill {
+    transition: all 0.2s ease;
+  }
+  .suggestion-pill:hover {
+    background: #4c6ef5;
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76,110,245,0.3);
+  }
+
+  .history-item { transition: all 0.2s ease; }
+  .history-item:hover { background: rgba(76,110,245,0.06); }
+
+  .toolbar-btn {
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  .toolbar-btn:hover { background: rgba(0,0,0,0.06); }
+  .toolbar-btn.active { background: rgba(76,110,245,0.1); color: #4c6ef5; }
+  .toolbar-btn .tooltip {
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .toolbar-btn:hover .tooltip { opacity: 1; }
+
+  .layer-item { transition: all 0.15s ease; }
+  .layer-item:hover { background: rgba(0,0,0,0.03); }
+  .layer-item.active { background: rgba(76,110,245,0.08); border-left: 2px solid #4c6ef5; }
+
+  .spec-mini-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+
+  @keyframes cursorBlink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+  .cursor-blink { animation: cursorBlink 1s infinite; }
+
+  @keyframes thinking { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+  .thinking-dot { animation: thinking 1.4s infinite; }
+  .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .slide-up { animation: slideUp 0.3s ease-out; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+  .zoom-control {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .panel-toggle {
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .breadcrumb-separator::after {
+    content: '/';
+    margin: 0 4px;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body class="bg-canvas-bg font-sans text-ink-0 select-none">
+
+<!-- === 整体布局 === -->
+<div class="h-screen flex flex-col">
+
+  <!-- Top Bar -->
+  <header class="h-12 bg-white border-b border-surface-3 flex items-center px-4 gap-3 flex-shrink-0 z-40">
+    <!-- Logo -->
+    <div class="flex items-center gap-2 pr-3 border-r border-surface-3">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-purple-600 flex items-center justify-center">
+        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"/></svg>
+      </div>
+      <span class="text-sm font-bold tracking-tight">SpecFlow</span>
+    </div>
+
+    <!-- Breadcrumb -->
+    <div class="flex items-center text-xs text-ink-3">
+      <span class="breadcrumb-separator font-medium text-ink-2">订单管理系统</span>
+      <span class="font-medium text-ink-1">订单列表页</span>
+    </div>
+
+    <!-- Center Toolbar -->
+    <div class="flex-1 flex justify-center">
+      <div class="flex items-center bg-surface-1 rounded-lg p-0.5 gap-0.5">
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center active">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/></svg>
+          <span class="tooltip">选择 (V)</span>
+        </button>
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+          <span class="tooltip">缩放 (Z)</span>
+        </button>
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5"/></svg>
+          <span class="tooltip">框选 (M)</span>
+        </button>
+        <div class="w-px h-5 bg-surface-3 mx-1"></div>
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+          <span class="tooltip">编辑文本 (T)</span>
+        </button>
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          <span class="tooltip">插入组件 (I)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Actions -->
+    <div class="flex items-center gap-2">
+      <!-- Page switcher -->
+      <div class="flex items-center bg-surface-1 rounded-lg p-0.5 text-xs">
+        <button class="px-3 py-1.5 rounded-md bg-white shadow-sm font-medium text-ink-0">订单列表</button>
+        <button class="px-3 py-1.5 rounded-md font-medium text-ink-3 hover:text-ink-1 transition-colors">订单详情</button>
+        <button class="px-3 py-1.5 rounded-md font-medium text-ink-3 hover:text-ink-1 transition-colors">导出配置</button>
+      </div>
+      <div class="w-px h-5 bg-surface-3"></div>
+      <!-- Device toggle -->
+      <div class="flex items-center bg-surface-1 rounded-lg p-0.5">
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center active">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"/></svg>
+          <span class="tooltip">桌面端</span>
+        </button>
+        <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/></svg>
+          <span class="tooltip">移动端</span>
+        </button>
+      </div>
+      <div class="w-px h-5 bg-surface-3"></div>
+      <!-- Undo/Redo -->
+      <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+        <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
+        <span class="tooltip">撤销 (⌘Z)</span>
+      </button>
+      <button class="toolbar-btn w-8 h-8 rounded-md flex items-center justify-center">
+        <svg class="w-4 h-4 text-ink-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15 15l6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3"/></svg>
+        <span class="tooltip">重做 (⌘⇧Z)</span>
+      </button>
+      <div class="w-px h-5 bg-surface-3"></div>
+      <!-- Export -->
+      <button class="h-8 px-3.5 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-brand-700 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        导出
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content: Sidebar + Canvas -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Left Panel: Layers -->
+    <aside id="leftPanel" class="w-56 bg-white border-r border-surface-3 flex flex-col flex-shrink-0 z-30">
+      <!-- Panel Header -->
+      <div class="h-10 px-3 flex items-center justify-between border-b border-surface-3 flex-shrink-0">
+        <div class="flex items-center gap-1">
+          <button class="text-xs font-semibold text-brand-600 px-2 py-1 rounded bg-brand-50">图层</button>
+          <button class="text-xs font-medium text-ink-3 px-2 py-1 rounded hover:bg-surface-1 transition-colors">组件</button>
+        </div>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-2 transition-colors">
+          <svg class="w-3.5 h-3.5 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </button>
+      </div>
+
+      <!-- Layer Tree -->
+      <div class="flex-1 overflow-y-auto py-1 text-xs">
+        <!-- Page -->
+        <div class="px-2 py-1.5 flex items-center gap-1.5 text-ink-3 font-medium">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+          订单列表页
+        </div>
+
+        <!-- Header group -->
+        <div class="layer-item px-2 py-1.5 pl-5 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-ink-1">Header</span>
+          <span class="ml-auto spec-mini-tag bg-surface-2 text-ink-3">容器</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer">
+          <span class="w-3 h-3 flex items-center justify-center text-[10px] text-ink-3 font-bold">T</span>
+          <span class="text-ink-2">Logo</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer">
+          <span class="w-3 h-3 flex items-center justify-center text-[10px] text-ink-3 font-bold">T</span>
+          <span class="text-ink-2">导航菜单</span>
+        </div>
+
+        <!-- Content group -->
+        <div class="layer-item px-2 py-1.5 pl-5 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-ink-1">主内容区</span>
+          <span class="ml-auto spec-mini-tag bg-surface-2 text-ink-3">容器</span>
+        </div>
+
+        <!-- Title bar - SELECTED -->
+        <div class="layer-item active px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer border-l-2 border-brand-500" style="border-left: 2px solid #4c6ef5;">
+          <svg class="w-3 h-3 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-brand-600 font-medium">标题栏</span>
+          <span class="ml-auto spec-mini-tag bg-brand-50 text-brand-600">选中</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-12 flex items-center gap-1.5 cursor-pointer">
+          <span class="w-3 h-3 flex items-center justify-center text-[10px] text-ink-3 font-bold">H</span>
+          <span class="text-ink-2">"订单管理"</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-12 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-ink-2">操作按钮组</span>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="layer-item px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-ink-1">筛选栏</span>
+        </div>
+
+        <!-- Table -->
+        <div class="layer-item px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125"/></svg>
+          <span class="text-ink-1">订单表格</span>
+          <span class="ml-auto spec-mini-tag bg-emerald-50 text-emerald-600">数据</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-12 flex items-center gap-1.5 cursor-pointer text-ink-3">
+          <span class="text-[10px]">⊞</span>
+          <span>表头行</span>
+        </div>
+        <div class="layer-item px-2 py-1.5 pl-12 flex items-center gap-1.5 cursor-pointer text-ink-3">
+          <span class="text-[10px]">⊞</span>
+          <span>数据行 ×4</span>
+        </div>
+
+        <!-- Pagination -->
+        <div class="layer-item px-2 py-1.5 pl-9 flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+          <span class="text-ink-1">分页器</span>
+        </div>
+      </div>
+
+      <!-- Panel Footer: Spec Mini -->
+      <div class="border-t border-surface-3 p-3 flex-shrink-0">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-semibold text-ink-2">Spec 状态</span>
+          <span class="flex items-center gap-1 text-[11px] text-green-600"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>已同步</span>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <span class="spec-mini-tag bg-brand-50 text-brand-600">3 页面</span>
+          <span class="spec-mini-tag bg-purple-50 text-purple-600">4 实体</span>
+          <span class="spec-mini-tag bg-pink-50 text-pink-600">12 Token</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas Area -->
+    <main class="flex-1 relative overflow-hidden canvas-grid">
+      <!-- Zoom Control -->
+      <div class="absolute top-4 left-4 z-20 zoom-control rounded-lg flex items-center gap-1 p-1">
+        <button class="w-7 h-7 rounded flex items-center justify-center hover:bg-surface-2 transition-colors text-ink-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 12h-15"/></svg>
+        </button>
+        <span class="text-xs font-medium text-ink-1 w-10 text-center">100%</span>
+        <button class="w-7 h-7 rounded flex items-center justify-center hover:bg-surface-2 transition-colors text-ink-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </button>
+        <div class="w-px h-5 bg-surface-3"></div>
+        <button class="w-7 h-7 rounded flex items-center justify-center hover:bg-surface-2 transition-colors text-ink-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+        </button>
+      </div>
+
+      <!-- Mini Map -->
+      <div class="absolute top-4 right-4 z-20 w-32 h-20 bg-white/90 backdrop-blur-sm rounded-lg border border-surface-3 shadow-sm overflow-hidden">
+        <div class="w-full h-full p-1.5">
+          <div class="w-full h-full bg-surface-1 rounded relative">
+            <div class="absolute inset-x-1 top-0.5 h-1 bg-surface-3 rounded-sm"></div>
+            <div class="absolute inset-x-1 top-2 h-0.5 bg-surface-3 rounded-sm"></div>
+            <div class="absolute inset-x-1 top-3.5 bottom-1 bg-surface-3/50 rounded-sm"></div>
+            <div class="absolute inset-1 border-2 border-brand-500 rounded-sm opacity-60"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === The Canvas Content (Simulated Browser Frame) === -->
+      <div class="absolute inset-0 flex items-start justify-center pt-8 pb-36 overflow-auto">
+        <div class="w-[960px] bg-white rounded-xl shadow-2xl shadow-black/[0.06] border border-surface-3/60 overflow-hidden flex-shrink-0">
+
+          <!-- Browser Chrome -->
+          <div class="bg-surface-2 px-4 py-2 flex items-center gap-3 border-b border-surface-3">
+            <div class="flex gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#ff5f57]"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-[#febc2e]"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-[#28c840]"></div>
+            </div>
+            <div class="flex-1 flex justify-center">
+              <div class="bg-white/80 rounded-md px-4 py-1 text-[11px] text-ink-3 flex items-center gap-1.5 min-w-[240px]">
+                <svg class="w-3 h-3 text-ink-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+                app.specflow.dev/preview/order-list
+              </div>
+            </div>
+          </div>
+
+          <!-- Page Content -->
+          <div class="bg-white">
+            <!-- App Header -->
+            <div class="hover-highlight border-b border-surface-3 px-6 py-3 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                </div>
+                <span class="text-sm font-bold">OrderHub</span>
+              </div>
+              <div class="flex items-center gap-6 text-sm text-ink-2">
+                <span class="text-brand-600 font-medium">订单</span>
+                <span class="hover-highlight rounded px-1.5 py-0.5">客户</span>
+                <span class="hover-highlight rounded px-1.5 py-0.5">商品</span>
+                <span class="hover-highlight rounded px-1.5 py-0.5">统计</span>
+                <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 text-xs font-bold">K</div>
+              </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="p-6">
+              <!-- Title Bar — SELECTED ELEMENT -->
+              <div class="selected-element rounded-lg mb-5 relative" id="selectedEl">
+                <span class="element-label">标题栏</span>
+                <div class="resize-handle tl"></div>
+                <div class="resize-handle tr"></div>
+                <div class="resize-handle bl"></div>
+                <div class="resize-handle br"></div>
+                <div class="resize-handle tm"></div>
+                <div class="resize-handle bm"></div>
+                <div class="resize-handle ml"></div>
+                <div class="resize-handle mr"></div>
+
+                <div class="flex items-center justify-between py-1">
+                  <div>
+                    <h1 class="text-xl font-bold text-ink-0">订单管理</h1>
+                    <p class="text-sm text-ink-3 mt-0.5">管理和追踪所有订单状态</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button class="h-9 px-4 rounded-lg bg-white border border-surface-3 text-sm font-medium text-ink-1 flex items-center gap-1.5 hover-highlight">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                      导出
+                    </button>
+                    <button class="h-9 px-4 rounded-lg bg-brand-600 text-white text-sm font-medium flex items-center gap-1.5 hover-highlight">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                      新建订单
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Filter Bar -->
+              <div class="hover-highlight flex items-center gap-3 mb-5 rounded-lg">
+                <div class="flex-1 flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2.5">
+                  <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+                  <span class="text-sm text-ink-3">搜索订单号、客户名称...</span>
+                </div>
+                <button class="h-10 px-3.5 rounded-lg border border-surface-3 bg-white text-sm text-ink-1 flex items-center gap-1.5 font-medium">
+                  <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z"/></svg>
+                  状态
+                  <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+                </button>
+                <button class="h-10 px-3.5 rounded-lg border border-surface-3 bg-white text-sm text-ink-1 flex items-center gap-1.5 font-medium">
+                  <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                  日期范围
+                  <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+                </button>
+              </div>
+
+              <!-- Data Table -->
+              <div class="hover-highlight rounded-xl border border-surface-3 overflow-hidden mb-5">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-surface-1 border-b border-surface-3">
+                      <th class="w-10 py-3 px-4"><input type="checkbox" class="w-4 h-4 rounded border-surface-4"></th>
+                      <th class="text-left py-3 px-4 font-semibold text-ink-1">订单号</th>
+                      <th class="text-left py-3 px-4 font-semibold text-ink-1">客户</th>
+                      <th class="text-left py-3 px-4 font-semibold text-ink-1">商品</th>
+                      <th class="text-right py-3 px-4 font-semibold text-ink-1">金额</th>
+                      <th class="text-center py-3 px-4 font-semibold text-ink-1">状态</th>
+                      <th class="text-left py-3 px-4 font-semibold text-ink-1">日期</th>
+                      <th class="w-10 py-3 px-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-b border-surface-3 hover:bg-brand-50/30 transition-colors">
+                      <td class="py-3 px-4"><input type="checkbox" class="w-4 h-4 rounded border-surface-4"></td>
+                      <td class="py-3 px-4 font-mono text-xs font-medium text-brand-600">#ORD-2024001</td>
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600">张</div>
+                          <span>张三</span>
+                        </div>
+                      </td>
+                      <td class="py-3 px-4 text-ink-2">MacBook Pro 14"</td>
+                      <td class="py-3 px-4 text-right font-medium">¥14,999</td>
+                      <td class="py-3 px-4 text-center"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>已完成</span></td>
+                      <td class="py-3 px-4 text-ink-3 text-xs">2024-05-12</td>
+                      <td class="py-3 px-4"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg></td>
+                    </tr>
+                    <tr class="border-b border-surface-3 hover:bg-brand-50/30 transition-colors">
+                      <td class="py-3 px-4"><input type="checkbox" class="w-4 h-4 rounded border-surface-4"></td>
+                      <td class="py-3 px-4 font-mono text-xs font-medium text-brand-600">#ORD-2024002</td>
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-600">李</div>
+                          <span>李四</span>
+                        </div>
+                      </td>
+                      <td class="py-3 px-4 text-ink-2">AirPods Pro 2</td>
+                      <td class="py-3 px-4 text-right font-medium">¥1,899</td>
+                      <td class="py-3 px-4 text-center"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>已发货</span></td>
+                      <td class="py-3 px-4 text-ink-3 text-xs">2024-05-11</td>
+                      <td class="py-3 px-4"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg></td>
+                    </tr>
+                    <tr class="border-b border-surface-3 hover:bg-brand-50/30 transition-colors">
+                      <td class="py-3 px-4"><input type="checkbox" class="w-4 h-4 rounded border-surface-4"></td>
+                      <td class="py-3 px-4 font-mono text-xs font-medium text-brand-600">#ORD-2024003</td>
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center text-[10px] font-bold text-pink-600">王</div>
+                          <span>王五</span>
+                        </div>
+                      </td>
+                      <td class="py-3 px-4 text-ink-2">iPad Air M2</td>
+                      <td class="py-3 px-4 text-right font-medium">¥4,799</td>
+                      <td class="py-3 px-4 text-center"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>待付款</span></td>
+                      <td class="py-3 px-4 text-ink-3 text-xs">2024-05-10</td>
+                      <td class="py-3 px-4"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg></td>
+                    </tr>
+                    <tr class="hover:bg-brand-50/30 transition-colors">
+                      <td class="py-3 px-4"><input type="checkbox" class="w-4 h-4 rounded border-surface-4"></td>
+                      <td class="py-3 px-4 font-mono text-xs font-medium text-brand-600">#ORD-2024004</td>
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-600">赵</div>
+                          <span>赵六</span>
+                        </div>
+                      </td>
+                      <td class="py-3 px-4 text-ink-2">Apple Watch Ultra</td>
+                      <td class="py-3 px-4 text-right font-medium">¥6,299</td>
+                      <td class="py-3 px-4 text-center"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>已取消</span></td>
+                      <td class="py-3 px-4 text-ink-3 text-xs">2024-05-09</td>
+                      <td class="py-3 px-4"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <div class="hover-highlight flex items-center justify-between rounded-lg">
+                <span class="text-sm text-ink-3">共 128 条记录</span>
+                <div class="flex items-center gap-1">
+                  <button class="w-8 h-8 rounded-lg border border-surface-3 flex items-center justify-center text-ink-3 hover:bg-surface-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                  </button>
+                  <button class="w-8 h-8 rounded-lg bg-brand-600 text-white text-sm font-medium">1</button>
+                  <button class="w-8 h-8 rounded-lg border border-surface-3 text-ink-2 text-sm hover:bg-surface-1">2</button>
+                  <button class="w-8 h-8 rounded-lg border border-surface-3 text-ink-2 text-sm hover:bg-surface-1">3</button>
+                  <span class="text-ink-3 text-sm px-1">...</span>
+                  <button class="w-8 h-8 rounded-lg border border-surface-3 text-ink-2 text-sm hover:bg-surface-1">13</button>
+                  <button class="w-8 h-8 rounded-lg border border-surface-3 flex items-center justify-center text-ink-3 hover:bg-surface-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Dimension indicator === -->
+      <div class="absolute top-[68px] right-[calc(50%-480px-50px)] z-20 flex flex-col items-center gap-0.5">
+        <div class="w-px h-4 bg-brand-400"></div>
+        <span class="text-[10px] text-brand-600 font-mono font-medium bg-white/80 px-1.5 rounded">960px</span>
+      </div>
+
+      <!-- === Bottom Floating Chat Bar === -->
+      <div class="absolute bottom-0 inset-x-0 z-30 px-4 pb-4 pointer-events-none">
+
+        <!-- AI Response Bubble (History) -->
+        <div class="max-w-2xl mx-auto mb-3 pointer-events-auto slide-up" id="chatHistory">
+          <div class="glass-dark rounded-2xl p-4 text-white">
+            <!-- Previous conversation -->
+            <div class="flex items-start gap-3 mb-3 pb-3 border-b border-white/10">
+              <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-white/90 leading-relaxed">已选中<strong class="text-brand-300">「标题栏」</strong>区域。你可以告诉我想要的修改，比如：</p>
+                <div class="flex flex-wrap gap-1.5 mt-2">
+                  <span class="suggestion-pill text-xs bg-white/10 text-white/80 px-2.5 py-1 rounded-full cursor-pointer pointer-events-auto">调大标题字号</span>
+                  <span class="suggestion-pill text-xs bg-white/10 text-white/80 px-2.5 py-1 rounded-full cursor-pointer pointer-events-auto">增加一个数据概览卡片</span>
+                  <span class="suggestion-pill text-xs bg-white/10 text-white/80 px-2.5 py-1 rounded-full cursor-pointer pointer-events-auto">配色更商务一些</span>
+                  <span class="suggestion-pill text-xs bg-white/10 text-white/80 px-2.5 py-1 rounded-full cursor-pointer pointer-events-auto">加一个 Tab 切换</span>
+                </div>
+              </div>
+              <button class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors flex-shrink-0" onclick="document.getElementById('chatHistory').style.display='none'">
+                <svg class="w-3.5 h-3.5 text-white/40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"/></svg>
+              </button>
+            </div>
+
+            <!-- Spec change preview -->
+            <div class="flex items-center gap-2 text-xs text-white/50">
+              <svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+              <span>上次修改已同步到 Spec：</span>
+              <span class="text-green-400/80">+2 组件更新</span>
+              <span class="text-white/20">·</span>
+              <span class="text-blue-400/80">1 Token 变更</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Input Bar -->
+        <div class="max-w-2xl mx-auto pointer-events-auto">
+          <div class="chat-float glass rounded-2xl overflow-hidden">
+            <!-- Input Row -->
+            <div class="flex items-end gap-3 p-3">
+              <!-- Context indicator -->
+              <div class="flex items-center gap-1.5 pb-1.5 flex-shrink-0">
+                <div class="flex items-center gap-1 bg-brand-50 text-brand-600 text-xs font-medium pl-1.5 pr-2.5 py-1 rounded-lg border border-brand-200/50">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 0 1-1.125-1.125v-3.75Z"/></svg>
+                  标题栏
+                  <button class="ml-0.5 w-3.5 h-3.5 rounded-full hover:bg-brand-100 flex items-center justify-center">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Text input -->
+              <div class="flex-1 min-w-0 relative">
+                <div class="text-sm text-ink-0 leading-relaxed py-1.5" contenteditable="false">
+                  <span class="text-ink-0">把标题改成左右布局，左边放统计数字卡片，右边保留操作按钮</span>
+                  <span class="cursor-blink text-brand-500 ml-0.5">|</span>
+                </div>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex items-center gap-1.5 pb-1 flex-shrink-0">
+                <button class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-2 transition-colors text-ink-3" title="附加图片">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 0 3Z"/></svg>
+                </button>
+                <button class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center hover:bg-brand-700 transition-colors shadow-lg shadow-brand-600/30" title="发送 (⏎)">
+                  <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Bottom toolbar -->
+            <div class="flex items-center justify-between px-3 pb-2 pt-0">
+              <div class="flex items-center gap-3 text-[11px] text-ink-3">
+                <span class="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+                  Claude 4 Sonnet
+                </span>
+                <span class="text-ink-4">·</span>
+                <span class="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                  Spec 自动同步
+                </span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-ink-3">
+                <kbd class="px-1.5 py-0.5 bg-surface-2 rounded text-[10px] font-mono">⏎</kbd>
+                <span>发送</span>
+                <kbd class="px-1.5 py-0.5 bg-surface-2 rounded text-[10px] font-mono">⇧⏎</kbd>
+                <span>换行</span>
+                <kbd class="px-1.5 py-0.5 bg-surface-2 rounded text-[10px] font-mono">Esc</kbd>
+                <span>取消选中</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Properties -->
+    <aside id="rightPanel" class="w-60 bg-white border-l border-surface-3 flex flex-col flex-shrink-0 z-30 overflow-y-auto">
+      <!-- Panel Header -->
+      <div class="h-10 px-3 flex items-center justify-between border-b border-surface-3 flex-shrink-0">
+        <span class="text-xs font-semibold text-ink-1">属性</span>
+        <span class="text-[11px] text-brand-600 font-medium flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+          标题栏
+        </span>
+      </div>
+
+      <!-- Position & Size -->
+      <div class="p-3 border-b border-surface-3">
+        <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">布局</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-ink-3 w-3">X</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 text-center">24</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-ink-3 w-3">Y</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 text-center">96</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-ink-3 w-3">W</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 text-center">912</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-ink-3 w-3">H</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 text-center">auto</div>
+          </div>
+        </div>
+        <div class="mt-2 grid grid-cols-4 gap-1">
+          <div class="flex flex-col items-center">
+            <div class="bg-surface-1 rounded px-1.5 py-1 text-[10px] font-mono text-ink-2 text-center w-full">0</div>
+            <span class="text-[9px] text-ink-4 mt-0.5">上</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <div class="bg-surface-1 rounded px-1.5 py-1 text-[10px] font-mono text-ink-2 text-center w-full">0</div>
+            <span class="text-[9px] text-ink-4 mt-0.5">右</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <div class="bg-surface-1 rounded px-1.5 py-1 text-[10px] font-mono text-ink-2 text-center w-full">20</div>
+            <span class="text-[9px] text-ink-4 mt-0.5">下</span>
+          </div>
+          <div class="flex flex-col items-center">
+            <div class="bg-surface-1 rounded px-1.5 py-1 text-[10px] font-mono text-ink-2 text-center w-full">0</div>
+            <span class="text-[9px] text-ink-4 mt-0.5">左</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="p-3 border-b border-surface-3">
+        <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">显示</div>
+        <div class="grid grid-cols-4 gap-1 mb-2">
+          <button class="h-7 rounded bg-brand-50 text-brand-600 text-[10px] font-semibold border border-brand-200">flex</button>
+          <button class="h-7 rounded bg-surface-1 text-ink-3 text-[10px] font-medium hover:bg-surface-2">grid</button>
+          <button class="h-7 rounded bg-surface-1 text-ink-3 text-[10px] font-medium hover:bg-surface-2">block</button>
+          <button class="h-7 rounded bg-surface-1 text-ink-3 text-[10px] font-medium hover:bg-surface-2">none</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] text-ink-3 w-12">方向</span>
+          <div class="flex-1 flex gap-1">
+            <button class="flex-1 h-7 rounded bg-brand-50 text-brand-600 text-[10px] font-semibold border border-brand-200">row</button>
+            <button class="flex-1 h-7 rounded bg-surface-1 text-ink-3 text-[10px] font-medium">column</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <span class="text-[11px] text-ink-3 w-12">对齐</span>
+          <div class="flex-1 flex gap-1">
+            <button class="flex-1 h-7 rounded bg-surface-1 flex items-center justify-center hover:bg-surface-2">
+              <svg class="w-3.5 h-3.5 text-ink-3" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg>
+            </button>
+            <button class="flex-1 h-7 rounded bg-brand-50 border border-brand-200 flex items-center justify-center">
+              <svg class="w-3.5 h-3.5 text-brand-600" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/><rect x="3" y="12" width="10" height="2" rx="1" fill="currentColor"/></svg>
+            </button>
+            <button class="flex-1 h-7 rounded bg-surface-1 flex items-center justify-center hover:bg-surface-2">
+              <svg class="w-3.5 h-3.5 text-ink-3" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="3" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <span class="text-[11px] text-ink-3 w-12">间距</span>
+          <div class="flex-1 flex items-center gap-1.5">
+            <span class="text-[11px] text-ink-3">justify</span>
+            <div class="flex-1 bg-surface-1 rounded px-2 py-1 text-[10px] font-mono text-ink-1 text-center">between</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typography -->
+      <div class="p-3 border-b border-surface-3">
+        <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">文字样式</div>
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-ink-3 w-10">标题</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1">xl / bold</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-ink-3 w-10">描述</span>
+            <div class="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1">sm / normal</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-ink-3 w-10">颜色</span>
+            <div class="flex items-center gap-1.5 flex-1">
+              <div class="w-5 h-5 rounded border border-surface-3" style="background:#0f172a"></div>
+              <span class="text-xs font-mono text-ink-2">#0f172a</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Design Token Link -->
+      <div class="p-3 border-b border-surface-3">
+        <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">Design Token</div>
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-ink-2">font-size</span>
+            <span class="font-mono text-brand-600 bg-brand-50 px-1.5 rounded">text-xl</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-ink-2">font-weight</span>
+            <span class="font-mono text-brand-600 bg-brand-50 px-1.5 rounded">font-bold</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-ink-2">color</span>
+            <span class="font-mono text-brand-600 bg-brand-50 px-1.5 rounded">ink-0</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-ink-2">margin-bottom</span>
+            <span class="font-mono text-brand-600 bg-brand-50 px-1.5 rounded">mb-5</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spec Binding -->
+      <div class="p-3">
+        <div class="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">Spec 绑定</div>
+        <div class="bg-surface-1 rounded-lg p-2.5 text-xs space-y-1.5">
+          <div class="flex items-center gap-2">
+            <svg class="w-3 h-3 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.586-3.828a4.5 4.5 0 0 0-1.242-7.244l4.5-4.5a4.5 4.5 0 0 1 6.364 6.364l-1.757 1.757"/></svg>
+            <span class="text-ink-1 font-medium">pages.order-list.title</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-3 h-3 text-purple-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Z"/></svg>
+            <span class="text-ink-2">组件：PageHeader</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <span class="text-green-600">Spec 一致</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.hover-highlight').forEach(el => {
+  el.addEventListener('click', function(e) {
+    const prev = document.querySelector('.selected-element');
+    if (prev && prev !== this) {
+      prev.classList.remove('selected-element');
+      prev.querySelectorAll('.resize-handle, .element-label').forEach(h => h.remove());
+    }
+  });
+});
+</script>
+
+</body>
+</html>

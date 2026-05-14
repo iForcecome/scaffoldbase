@@ -1,0 +1,2202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecFlow — AI 原型与 PRD 协同工具 · 产品设计稿</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#f0f4ff', 100:'#dbe4ff', 200:'#bac8ff', 300:'#91a7ff', 400:'#748ffc', 500:'#5c7cfa', 600:'#4c6ef5', 700:'#4263eb', 800:'#3b5bdb', 900:'#364fc7' },
+        surface: { 0:'#ffffff', 1:'#f8f9fc', 2:'#f1f3f9', 3:'#e9ecf5' },
+        ink: { 0:'#0f172a', 1:'#334155', 2:'#64748b', 3:'#94a3b8' },
+      }
+    }
+  }
+}
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+  .glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+  .gradient-text { background: linear-gradient(135deg, #4263eb 0%, #7c3aed 50%, #ec4899 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .gradient-border { position: relative; }
+  .gradient-border::before { content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1px; background:linear-gradient(135deg,#4263eb,#7c3aed,#ec4899); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
+  .card-hover { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+  .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -12px rgba(66,99,235,0.15); }
+  .tab-active { color: #4263eb; border-bottom: 2px solid #4263eb; }
+  .fade-in { animation: fadeIn 0.6s ease-out forwards; opacity: 0; }
+  @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+  .fade-in { transform: translateY(20px); }
+  .delay-1 { animation-delay: 0.1s; }
+  .delay-2 { animation-delay: 0.2s; }
+  .delay-3 { animation-delay: 0.3s; }
+  .delay-4 { animation-delay: 0.4s; }
+  .mockup-shadow { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05); }
+  .timeline-line { position: relative; }
+  .timeline-line::before { content:''; position:absolute; left:23px; top:0; bottom:0; width:2px; background:linear-gradient(180deg,#4263eb,#7c3aed,#ec4899); }
+  .nav-link { position: relative; }
+  .nav-link::after { content:''; position:absolute; bottom:-2px; left:0; width:0; height:2px; background:#4263eb; transition:width 0.3s ease; }
+  .nav-link:hover::after, .nav-link.active::after { width:100%; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .arch-layer { transition: all 0.3s ease; }
+  .arch-layer:hover { transform: scale(1.02); }
+  .flow-arrow { animation: flowPulse 2s ease-in-out infinite; }
+  @keyframes flowPulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+  .spec-tag { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:9999px; font-size:12px; font-weight:500; }
+</style>
+</head>
+<body class="bg-surface-1 text-ink-0 antialiased">
+
+<!-- Navigation -->
+<nav id="nav" class="fixed top-0 inset-x-0 z-50 glass border-b border-white/50 transition-shadow duration-300">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-purple-600 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+      </div>
+      <span class="text-lg font-bold tracking-tight">SpecFlow</span>
+      <span class="text-[11px] font-medium text-ink-3 bg-surface-2 px-2 py-0.5 rounded-full ml-1">v0.1 设计稿</span>
+    </div>
+    <div class="hidden md:flex items-center gap-1">
+      <a href="#overview" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">概述</a>
+      <a href="#market" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">市场</a>
+      <a href="#users" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">用户</a>
+      <a href="#features" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">功能</a>
+      <a href="#designlib" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">物料库</a>
+      <a href="#architecture" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">交付物</a>
+      <a href="#workspace" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">工作台</a>
+      <a href="#quality" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">质量</a>
+      <a href="#mcp" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">MCP</a>
+      <a href="#roadmap" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">路线图</a>
+      <a href="#risks" class="nav-link px-3 py-1.5 text-sm font-medium text-ink-2 hover:text-ink-0 transition-colors">风险</a>
+    </div>
+    <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" class="md:hidden p-2 rounded-lg hover:bg-surface-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+    </button>
+  </div>
+  <div id="mobileMenu" class="hidden md:hidden border-t border-surface-3 px-6 pb-4 pt-2 space-y-1">
+    <a href="#overview" class="block py-2 text-sm text-ink-1">概述</a>
+    <a href="#market" class="block py-2 text-sm text-ink-1">市场</a>
+    <a href="#users" class="block py-2 text-sm text-ink-1">用户</a>
+    <a href="#features" class="block py-2 text-sm text-ink-1">功能</a>
+    <a href="#architecture" class="block py-2 text-sm text-ink-1">架构</a>
+    <a href="#workspace" class="block py-2 text-sm text-ink-1">工作台</a>
+    <a href="#quality" class="block py-2 text-sm text-ink-1">质量</a>
+    <a href="#mcp" class="block py-2 text-sm text-ink-1">MCP</a>
+    <a href="#roadmap" class="block py-2 text-sm text-ink-1">路线图</a>
+    <a href="#risks" class="block py-2 text-sm text-ink-1">风险</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="relative pt-32 pb-20 overflow-hidden">
+  <div class="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(66,99,235,0.12),transparent)]"></div>
+  <div class="absolute top-20 left-1/4 w-72 h-72 bg-brand-200/30 rounded-full blur-3xl"></div>
+  <div class="absolute top-40 right-1/4 w-64 h-64 bg-purple-200/30 rounded-full blur-3xl"></div>
+  <div class="relative max-w-5xl mx-auto px-6 text-center">
+    <div class="fade-in inline-flex items-center gap-2 bg-white/80 border border-brand-200/60 rounded-full px-4 py-1.5 mb-8">
+      <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+      <span class="text-sm font-medium text-ink-1">构想阶段 · 2026年5月</span>
+    </div>
+    <h1 class="fade-in delay-1 text-5xl md:text-7xl font-black tracking-tight leading-[1.1] mb-6">
+      用对话产出<br><span class="gradient-text">可交付的产品方案</span>
+    </h1>
+    <p class="fade-in delay-2 text-lg md:text-xl text-ink-2 max-w-2xl mx-auto mb-10 leading-relaxed">
+      一款面向 PM 与创业者的 AI 产品设计工具——<br>
+      通过自然语言对话，产出<strong class="text-ink-0">可交互的 HTML 产品方案</strong>，<br>
+      原型、PRD、Spec 融为一体，并通过 MCP 与 Cursor / Claude Code 深度集成。
+    </p>
+    <div class="fade-in delay-3 flex flex-wrap justify-center gap-3 mb-16">
+      <span class="spec-tag bg-brand-100 text-brand-700"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"/></svg>对话生成</span>
+      <span class="spec-tag bg-purple-100 text-purple-700"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/></svg>HTML 原型</span>
+      <span class="spec-tag bg-pink-100 text-pink-700"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>PRD 文档</span>
+      <span class="spec-tag bg-emerald-100 text-emerald-700"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.586-3.828a4.5 4.5 0 0 0-1.242-7.244l4.5-4.5a4.5 4.5 0 0 1 6.364 6.364l-1.757 1.757"/></svg>MCP 集成</span>
+    </div>
+
+    <!-- Hero Mockup -->
+    <div class="fade-in delay-4 max-w-4xl mx-auto">
+      <div class="mockup-shadow rounded-xl overflow-hidden border border-surface-3">
+        <div class="bg-surface-2 px-4 py-2.5 flex items-center gap-2 border-b border-surface-3">
+          <div class="flex gap-1.5">
+            <div class="w-3 h-3 rounded-full bg-red-400"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+            <div class="w-3 h-3 rounded-full bg-green-400"></div>
+          </div>
+          <div class="flex-1 flex justify-center">
+            <div class="bg-white rounded-md px-4 py-1 text-xs text-ink-3 flex items-center gap-1.5">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582"/></svg>
+              specflow.app
+            </div>
+          </div>
+        </div>
+        <div class="bg-white grid grid-cols-12 h-[420px]">
+          <!-- Sidebar -->
+          <div class="col-span-1 border-r border-surface-3 py-4 flex flex-col items-center gap-4">
+            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg></div>
+            <div class="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242"/></svg></div>
+            <div class="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center"><svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/></svg></div>
+          </div>
+          <!-- Chat Panel -->
+          <div class="col-span-4 border-r border-surface-3 flex flex-col">
+            <div class="px-4 py-3 border-b border-surface-3 flex items-center justify-between">
+              <span class="text-sm font-semibold">对话区</span>
+              <span class="text-[11px] text-ink-3 bg-surface-2 px-2 py-0.5 rounded-full">订单管理系统</span>
+            </div>
+            <div class="flex-1 p-4 space-y-3 overflow-auto">
+              <div class="flex gap-2">
+                <div class="w-6 h-6 rounded-full bg-brand-100 flex-shrink-0 flex items-center justify-center mt-0.5"><svg class="w-3 h-3 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg></div>
+                <div class="bg-surface-2 rounded-xl rounded-tl-sm px-3 py-2 text-sm text-ink-1 max-w-[85%]">我要做一个订单管理系统，包含订单列表、订单详情、筛选和导出功能。</div>
+              </div>
+              <div class="flex gap-2 justify-end">
+                <div class="bg-brand-600 text-white rounded-xl rounded-tr-sm px-3 py-2 text-sm max-w-[85%]">好的，我来帮你设计。请确认几个关键决策：<br><br>1. 订单状态有哪些？<br>2. 需要支持批量操作吗？<br>3. 导出格式偏好？</div>
+                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 flex-shrink-0 flex items-center justify-center mt-0.5">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/></svg>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <div class="w-6 h-6 rounded-full bg-brand-100 flex-shrink-0 flex items-center justify-center mt-0.5"><svg class="w-3 h-3 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z"/></svg></div>
+                <div class="bg-surface-2 rounded-xl rounded-tl-sm px-3 py-2 text-sm text-ink-1 max-w-[85%]">状态有待付款、已付款、已发货、已完成、已取消。需要批量操作。CSV 和 Excel 都支持。</div>
+              </div>
+              <div class="flex gap-2 justify-end">
+                <div class="bg-brand-600 text-white rounded-xl rounded-tr-sm px-3 py-2 text-sm max-w-[85%]">
+                  <div class="flex items-center gap-1.5 mb-1">
+                    <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span class="text-xs opacity-80">正在生成原型与 Spec...</span>
+                  </div>
+                </div>
+                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 flex-shrink-0 flex items-center justify-center mt-0.5">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="px-4 py-3 border-t border-surface-3">
+              <div class="flex items-center gap-2 bg-surface-2 rounded-xl px-3 py-2">
+                <input type="text" placeholder="描述你的产品想法..." class="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-3">
+                <button class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Preview Panel -->
+          <div class="col-span-4 border-r border-surface-3 flex flex-col">
+            <div class="px-4 py-3 border-b border-surface-3 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">预览区</span>
+                <div class="flex items-center bg-surface-2 rounded-md p-0.5">
+                  <button class="px-2 py-0.5 text-[11px] font-medium bg-white rounded shadow-sm">桌面端</button>
+                  <button class="px-2 py-0.5 text-[11px] font-medium text-ink-3">移动端</button>
+                </div>
+              </div>
+              <button class="text-[11px] text-brand-600 font-medium">全屏</button>
+            </div>
+            <div class="flex-1 bg-surface-1 p-3 overflow-auto">
+              <div class="bg-white rounded-lg border border-surface-3 h-full p-3">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-xs font-bold">订单管理</h3>
+                  <div class="flex gap-1">
+                    <span class="px-2 py-0.5 bg-brand-50 text-brand-600 text-[10px] font-medium rounded">+ 新建</span>
+                    <span class="px-2 py-0.5 bg-surface-2 text-ink-2 text-[10px] font-medium rounded">导出</span>
+                  </div>
+                </div>
+                <div class="flex gap-1.5 mb-3">
+                  <div class="flex-1 bg-surface-2 rounded px-2 py-1 text-[10px] text-ink-3">搜索订单...</div>
+                  <div class="bg-surface-2 rounded px-2 py-1 text-[10px] text-ink-2">状态 ▾</div>
+                  <div class="bg-surface-2 rounded px-2 py-1 text-[10px] text-ink-2">日期 ▾</div>
+                </div>
+                <div class="space-y-1.5">
+                  <div class="flex items-center gap-2 bg-surface-1 rounded-md px-2 py-1.5">
+                    <input type="checkbox" class="w-3 h-3 rounded">
+                    <span class="text-[10px] font-medium w-16">#ORD-001</span>
+                    <span class="text-[10px] text-ink-2 flex-1">张三</span>
+                    <span class="text-[10px] font-medium">¥1,280</span>
+                    <span class="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded-full">已完成</span>
+                  </div>
+                  <div class="flex items-center gap-2 bg-surface-1 rounded-md px-2 py-1.5">
+                    <input type="checkbox" class="w-3 h-3 rounded">
+                    <span class="text-[10px] font-medium w-16">#ORD-002</span>
+                    <span class="text-[10px] text-ink-2 flex-1">李四</span>
+                    <span class="text-[10px] font-medium">¥3,560</span>
+                    <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-medium rounded-full">已发货</span>
+                  </div>
+                  <div class="flex items-center gap-2 bg-surface-1 rounded-md px-2 py-1.5">
+                    <input type="checkbox" class="w-3 h-3 rounded">
+                    <span class="text-[10px] font-medium w-16">#ORD-003</span>
+                    <span class="text-[10px] text-ink-2 flex-1">王五</span>
+                    <span class="text-[10px] font-medium">¥890</span>
+                    <span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-medium rounded-full">待付款</span>
+                  </div>
+                  <div class="flex items-center gap-2 bg-surface-1 rounded-md px-2 py-1.5">
+                    <input type="checkbox" class="w-3 h-3 rounded">
+                    <span class="text-[10px] font-medium w-16">#ORD-004</span>
+                    <span class="text-[10px] text-ink-2 flex-1">赵六</span>
+                    <span class="text-[10px] font-medium">¥2,100</span>
+                    <span class="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded-full">已付款</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Spec Panel -->
+          <div class="col-span-3 flex flex-col">
+            <div class="px-4 py-3 border-b border-surface-3 flex items-center justify-between">
+              <span class="text-sm font-semibold">Spec 文档</span>
+              <div class="flex gap-1">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span class="text-[11px] text-ink-3">实时同步</span>
+              </div>
+            </div>
+            <div class="flex-1 p-3 overflow-auto text-[11px] space-y-3">
+              <div>
+                <div class="font-bold text-ink-0 mb-1 flex items-center gap-1">
+                  <svg class="w-3 h-3 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Z"/></svg>
+                  页面清单
+                </div>
+                <div class="space-y-1 text-ink-2 pl-4">
+                  <div class="flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-brand-400"></span>订单列表页</div>
+                  <div class="flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-brand-400"></span>订单详情页</div>
+                  <div class="flex items-center gap-1"><span class="w-1 h-1 rounded-full bg-brand-400"></span>导出配置弹窗</div>
+                </div>
+              </div>
+              <div>
+                <div class="font-bold text-ink-0 mb-1 flex items-center gap-1">
+                  <svg class="w-3 h-3 text-purple-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375"/></svg>
+                  数据模型
+                </div>
+                <div class="bg-surface-2 rounded-md p-2 font-mono text-[10px] text-ink-1">
+                  <div><span class="text-purple-600">Order</span> {</div>
+                  <div class="pl-2">id: <span class="text-brand-600">string</span></div>
+                  <div class="pl-2">status: <span class="text-brand-600">enum</span></div>
+                  <div class="pl-2">amount: <span class="text-brand-600">number</span></div>
+                  <div class="pl-2">customer: <span class="text-brand-600">string</span></div>
+                  <div>}</div>
+                </div>
+              </div>
+              <div>
+                <div class="font-bold text-ink-0 mb-1 flex items-center gap-1">
+                  <svg class="w-3 h-3 text-pink-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197"/></svg>
+                  Design Tokens
+                </div>
+                <div class="grid grid-cols-4 gap-1">
+                  <div class="h-5 rounded bg-brand-600" title="Primary"></div>
+                  <div class="h-5 rounded bg-ink-0" title="Text"></div>
+                  <div class="h-5 rounded bg-surface-2" title="Surface"></div>
+                  <div class="h-5 rounded bg-green-500" title="Success"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 产品概述 -->
+<section id="overview" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Product Overview</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">产品概述</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">填补 AI 产品工具链中"从想法到可评审方案"的关键空白</p>
+    </div>
+
+    <!-- Problem Statement -->
+    <div class="gradient-border rounded-2xl bg-white p-8 md:p-10 mb-12">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold mb-2">核心问题</h3>
+          <p class="text-ink-2 leading-relaxed">PM、创业者、产品负责人这个庞大群体被当前 AI 工具严重忽视。他们脑子里有产品想法，但没有快速把想法变成"可评审原型 + 可交付 PRD"的工具。</p>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="bg-red-50/50 rounded-xl p-4 border border-red-100/50">
+          <div class="text-sm font-semibold text-red-700 mb-2">传统流程碎片化</div>
+          <p class="text-xs text-red-600/80 leading-relaxed">写文档(Word/Notion) → 画原型(Axure/墨刀) → 给开发讲解 → 反复对齐，整个链路割裂且低效</p>
+        </div>
+        <div class="bg-red-50/50 rounded-xl p-4 border border-red-100/50">
+          <div class="text-sm font-semibold text-red-700 mb-2">AI 工具门槛高</div>
+          <p class="text-xs text-red-600/80 leading-relaxed">v0/Cursor 要求懂代码，Figma 要求懂设计，ChatGPT 写 PRD 又拿不到原型</p>
+        </div>
+        <div class="bg-red-50/50 rounded-xl p-4 border border-red-100/50">
+          <div class="text-sm font-semibold text-red-700 mb-2">文档与原型脱节</div>
+          <p class="text-xs text-red-600/80 leading-relaxed">PRD 和原型分开维护，随着迭代不断脱节，最终变成没人看的废纸</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 六层架构 -->
+    <h3 class="text-xl font-bold mb-6 text-center">产品九层能力架构</h3>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-brand-600 uppercase tracking-wider mb-1">Layer 1 · 入口层</div>
+        <h4 class="font-bold text-sm mb-1">对话生成 + 模板库</h4>
+        <p class="text-xs text-ink-2">从空白对话或业务模板/Skill 库快速启动</p>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-1">Layer 2 · 创作层</div>
+        <h4 class="font-bold text-sm mb-1">双视图实时同步</h4>
+        <p class="text-xs text-ink-2">对话 + 预览/Spec 双视图，实时反馈</p>
+      </div>
+      <div class="card-hover rounded-xl p-5 border-2 border-rose-200 bg-gradient-to-br from-rose-50 to-white">
+        <div class="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-1">Layer 3 · 物料层 <span class="text-[9px] bg-rose-500 text-white px-1.5 rounded-full ml-1">NEW</span></div>
+        <h4 class="font-bold text-sm mb-1">设计系统与物料库</h4>
+        <p class="text-xs text-ink-2">Design Token 模板、动效库、组件交互规范</p>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-pink-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Z"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-pink-600 uppercase tracking-wider mb-1">Layer 4 · 精修层</div>
+        <h4 class="font-bold text-sm mb-1">画布 + 自然语言调整</h4>
+        <p class="text-xs text-ink-2">选中元素 + 抽象语言精调，兼顾灵活精确</p>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Layer 5 · 导出层</div>
+        <h4 class="font-bold text-sm mb-1">标准化交付物</h4>
+        <p class="text-xs text-ink-2">HTML + PRD + Spec + 项目骨架一键导出</p>
+      </div>
+      <div class="card-hover rounded-xl p-5 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
+        <div class="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">Layer 6 · 项目层 <span class="text-[9px] bg-indigo-500 text-white px-1.5 rounded-full ml-1">NEW</span></div>
+        <h4 class="font-bold text-sm mb-1">Project Base + BaaS</h4>
+        <p class="text-xs text-ink-2">Supabase/PocketBase 集成，Auth 预置</p>
+      </div>
+      <div class="card-hover rounded-xl p-5 border-2 border-teal-200 bg-gradient-to-br from-teal-50 to-white">
+        <div class="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-teal-600 uppercase tracking-wider mb-1">Layer 7 · 质量层 <span class="text-[9px] bg-teal-500 text-white px-1.5 rounded-full ml-1">NEW</span></div>
+        <h4 class="font-bold text-sm mb-1">Quality Rules Engine</h4>
+        <p class="text-xs text-ink-2">性能 / 测试 / 安全 / 规范内置引擎</p>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Layer 8 · 集成层</div>
+        <h4 class="font-bold text-sm mb-1">MCP 深度集成</h4>
+        <p class="text-xs text-ink-2">连接 Cursor/Claude Code，Spec 持续保鲜</p>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-5 border border-surface-3">
+        <div class="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center mb-3">
+          <svg class="w-4.5 h-4.5 text-cyan-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+        </div>
+        <div class="text-[10px] font-bold text-cyan-600 uppercase tracking-wider mb-1">Layer 9 · 运维层</div>
+        <h4 class="font-bold text-sm mb-1">漂移检测与协作</h4>
+        <p class="text-xs text-ink-2">版本管理、团队协作、长期价值沉淀</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 市场分析 -->
+<section id="market" class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Market Analysis</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">市场分析与竞争格局</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">定位"想法→方案"的蓝海市场，与现有玩家形成上下游关系</p>
+    </div>
+
+    <!-- Competitor Grid -->
+    <div class="overflow-x-auto mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b-2 border-surface-3">
+            <th class="text-left py-3 px-4 font-semibold text-ink-0">产品</th>
+            <th class="text-left py-3 px-4 font-semibold text-ink-0">定位</th>
+            <th class="text-left py-3 px-4 font-semibold text-ink-0">目标用户</th>
+            <th class="text-left py-3 px-4 font-semibold text-ink-0">核心交付物</th>
+            <th class="text-center py-3 px-4 font-semibold text-ink-0">PRD 能力</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-b border-surface-3 hover:bg-surface-1 transition-colors">
+            <td class="py-3 px-4 font-medium">v0 (Vercel)</td>
+            <td class="py-3 px-4 text-ink-2">对话生成 React 组件</td>
+            <td class="py-3 px-4 text-ink-2">前端开发者</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-blue-50 text-blue-700">React 代码</span></td>
+            <td class="text-center py-3 px-4"><span class="text-red-400">&#10005;</span></td>
+          </tr>
+          <tr class="border-b border-surface-3 hover:bg-surface-1 transition-colors">
+            <td class="py-3 px-4 font-medium">Bolt.new / Lovable</td>
+            <td class="py-3 px-4 text-ink-2">对话生成完整应用</td>
+            <td class="py-3 px-4 text-ink-2">独立开发者</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-green-50 text-green-700">Web 应用</span></td>
+            <td class="text-center py-3 px-4"><span class="text-red-400">&#10005;</span></td>
+          </tr>
+          <tr class="border-b border-surface-3 hover:bg-surface-1 transition-colors">
+            <td class="py-3 px-4 font-medium">Cursor / Claude Code</td>
+            <td class="py-3 px-4 text-ink-2">AI 辅助代码编辑</td>
+            <td class="py-3 px-4 text-ink-2">专业开发者</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-purple-50 text-purple-700">代码库变更</span></td>
+            <td class="text-center py-3 px-4"><span class="text-red-400">&#10005;</span></td>
+          </tr>
+          <tr class="border-b border-surface-3 hover:bg-surface-1 transition-colors">
+            <td class="py-3 px-4 font-medium">Figma Make</td>
+            <td class="py-3 px-4 text-ink-2">AI 辅助设计</td>
+            <td class="py-3 px-4 text-ink-2">设计师</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-orange-50 text-orange-700">设计文件</span></td>
+            <td class="text-center py-3 px-4"><span class="text-red-400">&#10005;</span></td>
+          </tr>
+          <tr class="border-b border-surface-3 hover:bg-surface-1 transition-colors">
+            <td class="py-3 px-4 font-medium">Pencil.dev</td>
+            <td class="py-3 px-4 text-ink-2">IDE 内 AI 设计画布</td>
+            <td class="py-3 px-4 text-ink-2">全栈开发者</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-pink-50 text-pink-700">.pen + 代码</span></td>
+            <td class="text-center py-3 px-4"><span class="text-red-400">&#10005;</span></td>
+          </tr>
+          <tr class="bg-brand-50/50 border-b border-brand-100">
+            <td class="py-3 px-4 font-bold text-brand-700">SpecFlow (本产品)</td>
+            <td class="py-3 px-4 text-brand-700 font-medium">对话产出完整产品方案</td>
+            <td class="py-3 px-4 text-brand-700 font-medium">PM / 创业者</td>
+            <td class="py-3 px-4"><span class="spec-tag bg-brand-100 text-brand-700">HTML + PRD + Spec</span></td>
+            <td class="text-center py-3 px-4"><span class="text-green-500 font-bold text-lg">&#10003;</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Market Gap -->
+    <div class="bg-gradient-to-br from-brand-600 to-purple-700 rounded-2xl p-8 md:p-10 text-white">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold mb-3">核心洞察：被忽视的中间地带</h3>
+          <p class="text-white/80 leading-relaxed mb-4">所有现有工具都在服务"已经动手做"的人——开发者写代码、设计师画图。但在这之前的环节——PM 想清楚要做什么、把模糊想法变成可评审的方案——目前没有任何 AI 工具系统性地服务。</p>
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="bg-white/10 rounded-xl p-4">
+              <div class="text-2xl font-black mb-1">开发者工具</div>
+              <p class="text-sm text-white/70">v0、Cursor 等面向"已经在写代码"的人</p>
+            </div>
+            <div class="bg-white/20 rounded-xl p-4 ring-2 ring-white/30">
+              <div class="text-2xl font-black mb-1">空 白 地 带</div>
+              <p class="text-sm text-white/90 font-medium">PM 和创业者把想法变方案 → SpecFlow</p>
+            </div>
+            <div class="bg-white/10 rounded-xl p-4">
+              <div class="text-2xl font-black mb-1">设计师工具</div>
+              <p class="text-sm text-white/70">Figma 等面向"已经在做设计"的人</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 目标用户 -->
+<section id="users" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Target Users</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">目标用户</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">精准服务产品角色群体，不争夺设计师和开发者用户</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-10">
+      <!-- Persona A -->
+      <div class="card-hover bg-white rounded-2xl p-8 border border-surface-3">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-2xl font-bold">A</div>
+          <div>
+            <h3 class="text-lg font-bold">中小公司 PM</h3>
+            <span class="text-sm text-ink-3">主要目标用户</span>
+          </div>
+          <div class="ml-auto">
+            <span class="spec-tag bg-amber-100 text-amber-700">付费意愿：中等</span>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+            <p class="text-sm text-ink-2">需要快速产出可评审的原型，给老板/业务方/开发讲清楚</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>
+            <p class="text-sm text-ink-2">没有专业设计师配合，不能拿手绘草图汇报</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12"/></svg>
+            <p class="text-sm text-ink-2">讨厌反复修改文档与原型保持同步</p>
+          </div>
+        </div>
+      </div>
+      <!-- Persona B -->
+      <div class="card-hover bg-white rounded-2xl p-8 border border-surface-3">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">B</div>
+          <div>
+            <h3 class="text-lg font-bold">独立创业者 / 产品负责人</h3>
+            <span class="text-sm text-ink-3">主要目标用户</span>
+          </div>
+          <div class="ml-auto">
+            <span class="spec-tag bg-green-100 text-green-700">付费意愿：高</span>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+            <p class="text-sm text-ink-2">懂业务但不懂设计也不懂代码</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <p class="text-sm text-ink-2">想自己把产品想法做成 MVP 给投资人/早期用户看</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-4 h-4 text-ink-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            <p class="text-sm text-ink-2">时间紧、预算紧，无法雇设计师和开发</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Not serving -->
+    <div class="bg-surface-2 rounded-xl p-6 flex flex-wrap gap-4 items-center">
+      <span class="text-sm font-semibold text-ink-1">明确不服务：</span>
+      <span class="spec-tag bg-white text-ink-2 border border-surface-3">
+        <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        专业 UI/UX 设计师
+      </span>
+      <span class="spec-tag bg-white text-ink-2 border border-surface-3">
+        <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        已在 IDE 写代码的开发者
+      </span>
+      <span class="spec-tag bg-white text-ink-2 border border-surface-3">
+        <svg class="w-3 h-3 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        高保真视觉设计场景
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 核心功能 -->
+<section id="features" class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Core Features</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">核心功能设计</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">对话驱动 + HTML PRD + Spec 沉淀，一份交付物讲完整个产品故事</p>
+    </div>
+
+    <!-- HTML PRD Philosophy -->
+    <div class="gradient-border rounded-2xl bg-white p-8 md:p-10 mb-12">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold mb-2">核心理念：PRD 就是原型，原型就是 PRD</h3>
+          <p class="text-ink-2 leading-relaxed">传统 PRD 是长篇 Word，没人愿意读。我们的 PRD 是<strong>可交互的 HTML 产品故事</strong>——发个链接，30 秒看懂产品全貌。</p>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-red-50/50 rounded-xl p-5 border border-red-100/50 relative overflow-hidden">
+          <div class="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-100 flex items-center justify-center"><span class="text-red-500 text-lg">&#10005;</span></div>
+          <div class="text-sm font-bold text-red-700 mb-3">传统 PRD</div>
+          <div class="space-y-2 text-xs text-red-600/80">
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-red-400"></span>20 页 Word 文档，看 3 页就走神</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-red-400"></span>原型另外做，两者永远在脱节</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-red-400"></span>数据模型靠文字描述，没人能直观理解</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-red-400"></span>分享要发文件、开权限、装软件</div>
+          </div>
+        </div>
+        <div class="bg-brand-50/50 rounded-xl p-5 border border-brand-100/50 relative overflow-hidden">
+          <div class="absolute top-3 right-3 w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center"><span class="text-brand-600 text-lg">&#10003;</span></div>
+          <div class="text-sm font-bold text-brand-700 mb-3">HTML PRD (我们的方式)</div>
+          <div class="space-y-2 text-xs text-brand-600/80">
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-brand-500"></span>分层展示 + 可折叠，按需浏览不强迫</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-brand-500"></span>原型内嵌在文档中，天然同步不脱节</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-brand-500"></span>数据模型可视化，点击展开字段详情</div>
+            <div class="flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-brand-500"></span>发个链接，浏览器打开，全球可访问</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 bg-surface-1 rounded-xl p-4 border border-surface-3">
+        <div class="text-xs font-semibold text-ink-1 mb-2">架构分层：人看 HTML PRD，机器读 spec.json</div>
+        <div class="flex items-center justify-center gap-4 text-sm">
+          <div class="text-center">
+            <div class="w-32 h-10 rounded-lg bg-gradient-to-r from-brand-500 to-purple-500 text-white flex items-center justify-center font-semibold text-xs mb-1">HTML PRD</div>
+            <span class="text-[10px] text-ink-3">给人看 · 可交互</span>
+          </div>
+          <div class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+            <span class="text-[10px] text-ink-3">自动同步</span>
+          </div>
+          <div class="text-center">
+            <div class="w-32 h-10 rounded-lg bg-ink-0 text-white flex items-center justify-center font-semibold text-xs font-mono mb-1">spec.json</div>
+            <span class="text-[10px] text-ink-3">给机器读 · MCP 消费</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Tabs -->
+    <div class="mb-12">
+      <div class="flex border-b border-surface-3 mb-8 overflow-x-auto" id="featureTabs">
+        <button onclick="switchTab('tab-chat')" class="tab-btn px-5 py-3 text-sm font-medium whitespace-nowrap tab-active" data-tab="tab-chat">对话生成</button>
+        <button onclick="switchTab('tab-spec')" class="tab-btn px-5 py-3 text-sm font-medium whitespace-nowrap text-ink-3 border-b-2 border-transparent" data-tab="tab-spec">Spec 实时生长</button>
+        <button onclick="switchTab('tab-template')" class="tab-btn px-5 py-3 text-sm font-medium whitespace-nowrap text-ink-3 border-b-2 border-transparent" data-tab="tab-template">模板与 Skill</button>
+        <button onclick="switchTab('tab-canvas')" class="tab-btn px-5 py-3 text-sm font-medium whitespace-nowrap text-ink-3 border-b-2 border-transparent" data-tab="tab-canvas">画布精修</button>
+      </div>
+
+      <!-- Tab: Chat -->
+      <div id="tab-chat" class="tab-content">
+        <div class="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h3 class="text-2xl font-bold mb-4">对话即设计，所见即所得</h3>
+            <p class="text-ink-2 leading-relaxed mb-6">用自然语言描述你的产品想法，AI 解析意图、追问关键决策、实时生成中保真 HTML 原型。</p>
+            <div class="space-y-4">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><span class="text-brand-600 font-bold text-sm">1</span></div>
+                <div>
+                  <div class="font-semibold text-sm mb-0.5">中保真输出</div>
+                  <p class="text-sm text-ink-2">比线框图更有视觉层次，比高保真更快交付——PM 评审场景的最佳档位</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><span class="text-brand-600 font-bold text-sm">2</span></div>
+                <div>
+                  <div class="font-semibold text-sm mb-0.5">单文件 HTML + Tailwind</div>
+                  <p class="text-sm text-ink-2">零技术门槛，浏览器直接打开，一键分享给同事、老板、投资人</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><span class="text-brand-600 font-bold text-sm">3</span></div>
+                <div>
+                  <div class="font-semibold text-sm mb-0.5">渐进式交互</div>
+                  <p class="text-sm text-ink-2">从静态展示起步，逐步增加轻交互——按钮能点、弹窗能弹、表单能填</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-surface-1 rounded-2xl p-6 border border-surface-3">
+            <div class="bg-white rounded-xl p-4 mockup-shadow">
+              <div class="flex items-center gap-2 mb-3 pb-3 border-b border-surface-3">
+                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+                </div>
+                <span class="text-sm font-semibold">SpecFlow AI</span>
+              </div>
+              <div class="space-y-2 text-sm text-ink-1">
+                <p>好的，我已经根据你的需求生成了订单管理系统的原型，包含以下页面：</p>
+                <div class="flex flex-wrap gap-1.5 my-3">
+                  <span class="spec-tag bg-brand-50 text-brand-600">订单列表</span>
+                  <span class="spec-tag bg-purple-50 text-purple-600">订单详情</span>
+                  <span class="spec-tag bg-pink-50 text-pink-600">数据导出</span>
+                  <span class="spec-tag bg-emerald-50 text-emerald-600">筛选面板</span>
+                </div>
+                <p class="text-ink-2 text-xs">同步更新了 Spec 文档：5 个状态枚举、4 个数据实体、12 个 API 端点。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Spec -->
+      <div id="tab-spec" class="tab-content hidden">
+        <div class="grid md:grid-cols-2 gap-8 items-start">
+          <div>
+            <h3 class="text-2xl font-bold mb-4">对话后实时生长的结构化文档</h3>
+            <p class="text-ink-2 leading-relaxed mb-6">Spec 不是附属品，而是核心产出。它让用户直观感受到"AI 在帮我沉淀产品文档"。</p>
+            <div class="space-y-4">
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-bold mb-2 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded bg-brand-100 flex items-center justify-center"><svg class="w-3.5 h-3.5 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Z"/></svg></span>
+                  页面与功能清单
+                </div>
+                <p class="text-xs text-ink-2">每个页面的名称、目的、功能模块、关键交互——PRD 的雏形</p>
+              </div>
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-bold mb-2 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded bg-purple-100 flex items-center justify-center"><svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375"/></svg></span>
+                  数据结构
+                </div>
+                <p class="text-xs text-ink-2">列表、表单、卡片背后的数据实体、字段、类型定义</p>
+              </div>
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-bold mb-2 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded bg-pink-100 flex items-center justify-center"><svg class="w-3.5 h-3.5 text-pink-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197"/></svg></span>
+                  Design Tokens
+                </div>
+                <p class="text-xs text-ink-2">主色、字号体系、间距体系、圆角风格——视觉一致性的基础</p>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-4">
+            <div class="bg-ink-0 rounded-2xl p-5 text-white font-mono text-xs leading-relaxed">
+              <div class="text-ink-3 mb-3 text-[11px] font-sans font-semibold flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>spec.json · 实时更新
+              </div>
+              <div class="text-green-400">// Spec 用 JSON 存储、Markdown 展示</div>
+              <div>{</div>
+              <div class="pl-4"><span class="text-purple-400">"pages"</span>: [</div>
+              <div class="pl-8">{ <span class="text-purple-400">"name"</span>: <span class="text-amber-300">"订单列表"</span>,</div>
+              <div class="pl-10"><span class="text-purple-400">"purpose"</span>: <span class="text-amber-300">"展示和管理所有订单"</span>,</div>
+              <div class="pl-10"><span class="text-purple-400">"modules"</span>: [<span class="text-amber-300">"筛选栏"</span>, <span class="text-amber-300">"数据表格"</span>, <span class="text-amber-300">"批量操作"</span>] }</div>
+              <div class="pl-4">],</div>
+              <div class="pl-4"><span class="text-purple-400">"entities"</span>: {</div>
+              <div class="pl-8"><span class="text-purple-400">"Order"</span>: {</div>
+              <div class="pl-12"><span class="text-purple-400">"id"</span>: <span class="text-cyan-400">"string"</span>,</div>
+              <div class="pl-12"><span class="text-purple-400">"status"</span>: <span class="text-cyan-400">"OrderStatus"</span>,</div>
+              <div class="pl-12"><span class="text-purple-400">"amount"</span>: <span class="text-cyan-400">"number"</span></div>
+              <div class="pl-8">}</div>
+              <div class="pl-4">},</div>
+              <div class="pl-4"><span class="text-purple-400">"designTokens"</span>: {</div>
+              <div class="pl-8"><span class="text-purple-400">"primary"</span>: <span class="text-amber-300">"#4263eb"</span>,</div>
+              <div class="pl-8"><span class="text-purple-400">"radius"</span>: <span class="text-amber-300">"8px"</span></div>
+              <div class="pl-4">}</div>
+              <div>}</div>
+            </div>
+            <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+              <h4 class="text-sm font-bold mb-3">Spec 设计原则</h4>
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-xs text-ink-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>Spec 是"约束"不是"代码"，只放业务决策</div>
+                <div class="flex items-center gap-2 text-xs text-ink-2"><span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>必须可解释、可确认，结构性变化需用户拍板</div>
+                <div class="flex items-center gap-2 text-xs text-ink-2"><span class="w-1.5 h-1.5 rounded-full bg-pink-500"></span>JSON 存储、Markdown 展示，人机皆宜</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Template -->
+      <div id="tab-template" class="tab-content hidden">
+        <div class="grid md:grid-cols-2 gap-8 items-start">
+          <div>
+            <h3 class="text-2xl font-bold mb-4">业务模板 + 领域 Skill</h3>
+            <p class="text-ink-2 leading-relaxed mb-6">不做千篇一律的视觉模板，做带业务逻辑 + 数据模型 + 页面流的整套方案。</p>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3 p-3 rounded-xl border border-surface-3 bg-surface-1">
+                <span class="text-red-400 text-lg">&#10005;</span>
+                <div>
+                  <div class="text-sm font-semibold">视觉模板 <span class="text-xs text-ink-3 font-normal">—— 不做</span></div>
+                  <p class="text-xs text-ink-3">"SaaS 落地页""后台仪表盘"，同质化严重</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 p-3 rounded-xl border-2 border-brand-200 bg-brand-50">
+                <span class="text-brand-600 text-lg font-bold">&#10003;</span>
+                <div>
+                  <div class="text-sm font-semibold text-brand-700">业务模板 <span class="text-xs text-brand-500 font-normal">—— 重点做</span></div>
+                  <p class="text-xs text-brand-600">"订单管理系统""内容审核后台"，带完整 PRD 逻辑</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 p-3 rounded-xl border border-surface-3 bg-surface-1">
+                <span class="text-amber-500 text-lg">&#9679;</span>
+                <div>
+                  <div class="text-sm font-semibold">行业方案模板 <span class="text-xs text-ink-3 font-normal">—— 远期</span></div>
+                  <p class="text-xs text-ink-3">"SaaS 订阅产品全套""O2O 平台全套"</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-lg font-bold mb-4">Skill 是模板的进化版</h4>
+            <p class="text-sm text-ink-2 mb-4">"知道怎么生成这类页面"的活的能力包，颗粒度在"业务流程级"。</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="card-hover bg-white border border-surface-3 rounded-xl p-4">
+                <div class="text-2xl mb-2">&#128722;</div>
+                <div class="text-sm font-bold mb-1">电商 Skill</div>
+                <p class="text-xs text-ink-3">商品列表、SKU 管理、购物车流程</p>
+              </div>
+              <div class="card-hover bg-white border border-surface-3 rounded-xl p-4">
+                <div class="text-2xl mb-2">&#128203;</div>
+                <div class="text-sm font-bold mb-1">CMS Skill</div>
+                <p class="text-xs text-ink-3">内容管理、审核流程、发布管理</p>
+              </div>
+              <div class="card-hover bg-white border border-surface-3 rounded-xl p-4">
+                <div class="text-2xl mb-2">&#128176;</div>
+                <div class="text-sm font-bold mb-1">SaaS Skill</div>
+                <p class="text-xs text-ink-3">订阅计费、团队管理、权限体系</p>
+              </div>
+              <div class="card-hover bg-white border border-surface-3 rounded-xl p-4">
+                <div class="text-2xl mb-2">&#128202;</div>
+                <div class="text-sm font-bold mb-1">后台 Skill</div>
+                <p class="text-xs text-ink-3">仪表盘、数据报表、监控告警</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Canvas -->
+      <div id="tab-canvas" class="tab-content hidden">
+        <div class="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h3 class="text-2xl font-bold mb-4">指向 + 描述 = 精确修改</h3>
+            <p class="text-ink-2 leading-relaxed mb-6">选中页面元素，用自然语言描述修改意图，AI 理解抽象需求并转化为具体设计变更。</p>
+            <div class="space-y-4">
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-medium text-ink-0 mb-2">"把它做得更现代一点"</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="spec-tag bg-brand-50 text-brand-600 text-xs">更大留白</span>
+                  <span class="spec-tag bg-brand-50 text-brand-600 text-xs">更细字重</span>
+                  <span class="spec-tag bg-brand-50 text-brand-600 text-xs">更克制颜色</span>
+                  <span class="spec-tag bg-brand-50 text-brand-600 text-xs">更大圆角</span>
+                </div>
+              </div>
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-medium text-ink-0 mb-2">"增加一些呼吸感"</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="spec-tag bg-purple-50 text-purple-600 text-xs">增大行间距</span>
+                  <span class="spec-tag bg-purple-50 text-purple-600 text-xs">扩展内边距</span>
+                  <span class="spec-tag bg-purple-50 text-purple-600 text-xs">减少信息密度</span>
+                </div>
+              </div>
+              <div class="bg-surface-1 rounded-xl p-4 border border-surface-3">
+                <div class="text-sm font-medium text-ink-0 mb-2">"配色更冷一些"</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="spec-tag bg-cyan-50 text-cyan-600 text-xs">色相偏蓝</span>
+                  <span class="spec-tag bg-cyan-50 text-cyan-600 text-xs">降低饱和度</span>
+                  <span class="spec-tag bg-cyan-50 text-cyan-600 text-xs">提升明度</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-surface-1 rounded-2xl p-6 border border-surface-3">
+            <div class="bg-white rounded-xl overflow-hidden mockup-shadow">
+              <div class="bg-surface-2 px-3 py-2 flex items-center gap-2 text-[11px]">
+                <span class="text-ink-3">画布模式</span>
+                <span class="ml-auto spec-tag bg-brand-50 text-brand-600">选中: 标题区域</span>
+              </div>
+              <div class="p-4 relative">
+                <div class="border-2 border-dashed border-brand-400 rounded-lg p-4 bg-brand-50/30">
+                  <h3 class="text-lg font-bold mb-1">订单管理</h3>
+                  <p class="text-sm text-ink-3">管理和追踪所有订单状态</p>
+                </div>
+                <div class="absolute -top-2 -right-2 w-5 h-5 bg-brand-600 rounded-full border-2 border-white flex items-center justify-center">
+                  <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                </div>
+                <div class="mt-3 bg-surface-1 rounded-lg p-3 opacity-40">
+                  <div class="h-2 bg-surface-3 rounded w-3/4 mb-2"></div>
+                  <div class="h-2 bg-surface-3 rounded w-1/2"></div>
+                </div>
+                <div class="mt-2 bg-surface-1 rounded-lg p-3 opacity-30">
+                  <div class="h-2 bg-surface-3 rounded w-2/3 mb-2"></div>
+                  <div class="h-2 bg-surface-3 rounded w-1/3"></div>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-surface-3">
+              <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+              <input type="text" value="让标题区域更有冲击力，字号放大" class="flex-1 text-sm outline-none text-ink-1" readonly>
+              <button class="w-6 h-6 rounded bg-brand-600 flex items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 设计系统与物料库 -->
+<section id="designlib" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-rose-600 tracking-wider uppercase">Design System & Asset Library</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">设计系统与物料库</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">解决 AI 生成"千篇一律"的根本问题——让 AI 在高品质约束下生成，而非自由发挥</p>
+    </div>
+
+    <!-- Pain Point -->
+    <div class="gradient-border rounded-2xl bg-white p-8 md:p-10 mb-12">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold mb-2">核心痛点：AI 生成的东西缺乏"设计品味"</h3>
+          <p class="text-ink-2 leading-relaxed">当前所有 AI 工具生成的页面都有严重的"AI 味"——千篇一律的渐变紫色、无意义的卡片堆砌、没有体系的间距和字号。<strong>根本原因是 AI 没有完整的设计规范作为约束。</strong></p>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="bg-rose-50/50 rounded-xl p-4 border border-rose-100/50">
+          <div class="text-sm font-semibold text-rose-700 mb-2">Token 不完整</div>
+          <p class="text-xs text-rose-600/80 leading-relaxed">颜色随机挑、字号随意选、间距不统一，生成 10 个页面 10 种风格</p>
+        </div>
+        <div class="bg-rose-50/50 rounded-xl p-4 border border-rose-100/50">
+          <div class="text-sm font-semibold text-rose-700 mb-2">交互无规范</div>
+          <p class="text-xs text-rose-600/80 leading-relaxed">按钮 Hover 没有动效、菜单没有展开动画、表格没有排序交互</p>
+        </div>
+        <div class="bg-rose-50/50 rounded-xl p-4 border border-rose-100/50">
+          <div class="text-sm font-semibold text-rose-700 mb-2">无法"高大上"</div>
+          <p class="text-xs text-rose-600/80 leading-relaxed">用户想要专业感的网站，AI 只能给出粗糙的模板感</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Our Solution -->
+    <div class="text-center mb-10">
+      <h3 class="text-xl font-bold">解决方案：三层物料体系</h3>
+      <p class="text-sm text-ink-3 mt-2">从 Token 到组件到页面，层层约束、层层精美</p>
+    </div>
+
+    <!-- Layer 1: Design Token Templates -->
+    <div class="mb-8">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">1</div>
+        <h4 class="text-lg font-bold">Design Token 主题模板</h4>
+        <span class="spec-tag bg-rose-100 text-rose-600 text-xs">核心能力</span>
+      </div>
+      <p class="text-sm text-ink-2 mb-5 ml-11">用户选择一套主题后，AI 的所有生成都严格遵循这套 Token——不再乱用颜色、不再随意选字号。</p>
+
+      <div class="grid md:grid-cols-3 gap-4 ml-11">
+        <!-- Theme Card: Modern Minimal -->
+        <div class="card-hover bg-white rounded-xl overflow-hidden border border-surface-3">
+          <div class="h-28 bg-gradient-to-br from-slate-50 to-slate-100 p-4 flex flex-col justify-between">
+            <div class="flex gap-2">
+              <div class="w-6 h-6 rounded-md bg-slate-900"></div>
+              <div class="w-6 h-6 rounded-md bg-blue-600"></div>
+              <div class="w-6 h-6 rounded-md bg-slate-200"></div>
+              <div class="w-6 h-6 rounded-md bg-white border border-slate-200"></div>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-slate-900">Heading · Inter 700</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Body · Inter 400 · 16px/1.6</div>
+            </div>
+          </div>
+          <div class="p-4">
+            <h5 class="font-bold text-sm mb-1">Modern Minimal</h5>
+            <p class="text-xs text-ink-3">克制、留白、大圆角，适合 SaaS 和效率工具</p>
+            <div class="flex gap-1 mt-2">
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">radius: 12px</span>
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">shadow: soft</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Theme Card: Bold Enterprise -->
+        <div class="card-hover bg-white rounded-xl overflow-hidden border border-surface-3">
+          <div class="h-28 bg-gradient-to-br from-indigo-900 to-slate-900 p-4 flex flex-col justify-between">
+            <div class="flex gap-2">
+              <div class="w-6 h-6 rounded-md bg-indigo-500"></div>
+              <div class="w-6 h-6 rounded-md bg-emerald-400"></div>
+              <div class="w-6 h-6 rounded-md bg-slate-600"></div>
+              <div class="w-6 h-6 rounded-md bg-white/10 border border-white/20"></div>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white">Heading · Inter 800</div>
+              <div class="text-[10px] text-indigo-200 mt-0.5">Body · Inter 400 · 15px/1.5</div>
+            </div>
+          </div>
+          <div class="p-4">
+            <h5 class="font-bold text-sm mb-1">Bold Enterprise</h5>
+            <p class="text-xs text-ink-3">深色主调、强对比、数据密度高，适合后台和仪表盘</p>
+            <div class="flex gap-1 mt-2">
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">radius: 8px</span>
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">shadow: crisp</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Theme Card: Warm Creative -->
+        <div class="card-hover bg-white rounded-xl overflow-hidden border border-surface-3">
+          <div class="h-28 bg-gradient-to-br from-amber-50 to-orange-50 p-4 flex flex-col justify-between">
+            <div class="flex gap-2">
+              <div class="w-6 h-6 rounded-full bg-orange-500"></div>
+              <div class="w-6 h-6 rounded-full bg-rose-400"></div>
+              <div class="w-6 h-6 rounded-full bg-amber-200"></div>
+              <div class="w-6 h-6 rounded-full bg-white border border-orange-200"></div>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-orange-900" style="font-family:Georgia,serif">Heading · Serif 700</div>
+              <div class="text-[10px] text-orange-700 mt-0.5">Body · Sans 400 · 17px/1.7</div>
+            </div>
+          </div>
+          <div class="p-4">
+            <h5 class="font-bold text-sm mb-1">Warm Creative</h5>
+            <p class="text-xs text-ink-3">温暖色调、衬线标题、圆润造型，适合品牌和内容站</p>
+            <div class="flex gap-1 mt-2">
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">radius: 16px</span>
+              <span class="text-[10px] bg-surface-2 text-ink-2 px-1.5 py-0.5 rounded">shadow: warm</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ml-11 mt-4 bg-surface-1 rounded-xl p-4 border border-surface-3">
+        <div class="text-xs font-semibold text-ink-1 mb-2">每套 Token 模板包含：</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-ink-2">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-brand-500"></span>完整色板（主色 + 语义色 + 中性色 × 10 级）</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-purple-500"></span>字体体系（标题/正文/标注 × 大小/粗细）</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-pink-500"></span>间距体系（4px 基准 × 12 档位）</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span>圆角 / 阴影 / 边框 / 动效曲线</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 2: Animation & Interaction Library -->
+    <div class="mb-8">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">2</div>
+        <h4 class="text-lg font-bold">动效与交互规范库</h4>
+        <span class="spec-tag bg-violet-100 text-violet-600 text-xs">差异化壁垒</span>
+      </div>
+      <p class="text-sm text-ink-2 mb-5 ml-11">不同类型的元素有不同的交互预设，生成的页面不再是"静态截图"而是有生命力的原型。</p>
+
+      <div class="grid md:grid-cols-2 gap-4 ml-11">
+        <!-- Entrance Animations -->
+        <div class="bg-white rounded-xl p-5 border border-surface-3">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+            <span class="font-semibold text-sm">入场动效</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-brand-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Slide Up</span>
+            </div>
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-purple-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Scale In</span>
+            </div>
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-pink-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Fade In</span>
+            </div>
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-emerald-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Stagger</span>
+            </div>
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-amber-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Blur In</span>
+            </div>
+            <div class="bg-surface-1 rounded-lg p-2 text-center">
+              <div class="w-8 h-8 bg-cyan-100 rounded-md mx-auto mb-1.5 flex items-center justify-center"><svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58"/></svg></div>
+              <span class="text-[10px] text-ink-2 font-medium">Spring</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Micro Interactions -->
+        <div class="bg-white rounded-xl p-5 border border-surface-3">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672Z"/></svg>
+            <span class="font-semibold text-sm">微交互预设</span>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-brand-500"></span><span class="text-xs font-medium">按钮 Hover</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">scale(1.02) + shadow-lg</span>
+            </div>
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-purple-500"></span><span class="text-xs font-medium">卡片 Hover</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">translateY(-4px) + glow</span>
+            </div>
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-pink-500"></span><span class="text-xs font-medium">菜单展开</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">slideDown + fadeIn 200ms</span>
+            </div>
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-xs font-medium">表格行 Hover</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">bg-brand-50 + border-l</span>
+            </div>
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-xs font-medium">输入框 Focus</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">ring-2 + ring-brand-200</span>
+            </div>
+            <div class="flex items-center justify-between bg-surface-1 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyan-500"></span><span class="text-xs font-medium">Toast 弹出</span></div>
+              <span class="text-[10px] text-ink-3 font-mono">slideIn + spring 300ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 3: Component Interaction Templates -->
+    <div>
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">3</div>
+        <h4 class="text-lg font-bold">组件交互物料库</h4>
+        <span class="spec-tag bg-blue-100 text-blue-600 text-xs">生成质量保障</span>
+      </div>
+      <p class="text-sm text-ink-2 mb-5 ml-11">每类组件都有专属的交互规范模板——菜单怎么展开、表格怎么排序、按钮怎么反馈，全部预定义好。</p>
+
+      <div class="grid md:grid-cols-3 lg:grid-cols-4 gap-3 ml-11">
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+            <div class="flex flex-col w-full">
+              <div class="h-5 bg-brand-600 flex items-center px-2"><span class="text-[8px] text-white font-medium">顶部导航</span></div>
+              <div class="flex">
+                <div class="w-10 bg-surface-3 h-14"></div>
+                <div class="flex-1 bg-surface-2 h-14 p-1"><div class="h-1.5 bg-surface-3 rounded w-3/4 mb-1"></div><div class="h-1 bg-surface-3 rounded w-1/2"></div></div>
+              </div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">导航菜单</h5>
+          <p class="text-[10px] text-ink-3">顶栏 / 侧栏 / 面包屑 / Tabs</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">8 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center gap-2 px-3">
+            <div class="h-7 px-3 rounded-md bg-brand-600 flex items-center"><span class="text-[8px] text-white font-medium">主要</span></div>
+            <div class="h-7 px-3 rounded-md border border-surface-3 bg-white flex items-center"><span class="text-[8px] text-ink-2 font-medium">次要</span></div>
+            <div class="h-7 px-3 rounded-md flex items-center"><span class="text-[8px] text-brand-600 font-medium">文字</span></div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">按钮系统</h5>
+          <p class="text-[10px] text-ink-3">主要 / 次要 / 幽灵 / 加载态</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">12 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+            <div class="w-full px-2">
+              <div class="flex items-center bg-surface-3 rounded-sm h-4 mb-1 px-1"><span class="text-[7px] text-ink-3">ID</span><span class="ml-auto text-[7px]">▾</span></div>
+              <div class="flex items-center bg-white rounded-sm h-3.5 mb-0.5 px-1 border-l-2 border-brand-500"><span class="text-[7px] text-ink-2">#001</span></div>
+              <div class="flex items-center bg-surface-2 rounded-sm h-3.5 mb-0.5 px-1"><span class="text-[7px] text-ink-2">#002</span></div>
+              <div class="flex items-center bg-white rounded-sm h-3.5 px-1"><span class="text-[7px] text-ink-2">#003</span></div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">数据表格</h5>
+          <p class="text-[10px] text-ink-3">排序 / 筛选 / 展开行 / 行内编辑</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">6 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+            <div class="w-16 bg-white rounded-md shadow-lg p-1.5">
+              <div class="h-2 bg-surface-2 rounded mb-1"></div>
+              <div class="space-y-0.5">
+                <div class="h-2 bg-brand-50 rounded text-[6px] text-brand-600 flex items-center px-1">编辑</div>
+                <div class="h-2 bg-surface-2 rounded"></div>
+                <div class="h-2 bg-red-50 rounded text-[6px] text-red-500 flex items-center px-1">删除</div>
+              </div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">下拉菜单</h5>
+          <p class="text-[10px] text-ink-3">下拉 / 右键 / 多级 / Mega</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">5 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden px-3">
+            <div class="w-full space-y-1.5">
+              <div class="h-5 rounded border border-surface-3 bg-white flex items-center px-1.5"><span class="text-[7px] text-ink-3">请输入邮箱</span></div>
+              <div class="h-5 rounded border-2 border-brand-400 bg-white flex items-center px-1.5 ring-2 ring-brand-100"><span class="text-[7px] text-ink-0">king@</span><span class="w-px h-3 bg-brand-500 animate-pulse"></span></div>
+              <div class="h-5 rounded border border-red-300 bg-red-50 flex items-center px-1.5"><span class="text-[7px] text-red-500">格式错误</span></div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">表单控件</h5>
+          <p class="text-[10px] text-ink-3">输入框 / 选择器 / 验证 / 多步</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">10 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+            <div class="w-20 bg-white rounded shadow-lg border border-surface-3 p-1.5">
+              <div class="h-1 bg-surface-3 rounded w-3/4 mx-auto mb-2"></div>
+              <div class="h-1.5 bg-surface-2 rounded mb-1"></div>
+              <div class="h-1.5 bg-surface-2 rounded w-2/3 mb-2"></div>
+              <div class="flex gap-1 justify-end">
+                <div class="h-3 px-2 bg-surface-2 rounded text-[6px] flex items-center">取消</div>
+                <div class="h-3 px-2 bg-brand-600 rounded text-[6px] text-white flex items-center">确认</div>
+              </div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">弹窗 / 对话框</h5>
+          <p class="text-[10px] text-ink-3">Modal / Drawer / Sheet / Alert</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">7 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden px-3">
+            <div class="space-y-1 w-full">
+              <div class="w-full bg-white rounded shadow-sm p-1 flex items-center gap-1"><div class="w-4 h-4 rounded bg-brand-100"></div><div class="flex-1"><div class="h-1 bg-surface-3 rounded w-3/4"></div><div class="h-0.5 bg-surface-3 rounded w-1/2 mt-0.5"></div></div></div>
+              <div class="w-full bg-white rounded shadow-sm p-1 flex items-center gap-1"><div class="w-4 h-4 rounded bg-purple-100"></div><div class="flex-1"><div class="h-1 bg-surface-3 rounded w-2/3"></div><div class="h-0.5 bg-surface-3 rounded w-1/3 mt-0.5"></div></div></div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">卡片布局</h5>
+          <p class="text-[10px] text-ink-3">信息卡 / 统计卡 / 产品卡 / 骨架屏</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">9 种变体</div>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 text-center">
+          <div class="w-full h-20 bg-surface-1 rounded-lg mb-3 flex items-center justify-center overflow-hidden px-2">
+            <div class="w-full">
+              <div class="flex items-end gap-1 h-12">
+                <div class="flex-1 bg-brand-200 rounded-t-sm" style="height:40%"></div>
+                <div class="flex-1 bg-brand-300 rounded-t-sm" style="height:60%"></div>
+                <div class="flex-1 bg-brand-400 rounded-t-sm" style="height:80%"></div>
+                <div class="flex-1 bg-brand-500 rounded-t-sm" style="height:55%"></div>
+                <div class="flex-1 bg-brand-600 rounded-t-sm" style="height:90%"></div>
+                <div class="flex-1 bg-brand-400 rounded-t-sm" style="height:70%"></div>
+              </div>
+              <div class="h-px bg-surface-3 mt-0.5"></div>
+            </div>
+          </div>
+          <h5 class="text-xs font-bold mb-0.5">数据可视化</h5>
+          <p class="text-[10px] text-ink-3">图表 / 指标卡 / 进度条 / 趋势线</p>
+          <div class="text-[10px] text-brand-600 font-medium mt-1">8 种变体</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Value proposition -->
+    <div class="mt-12 bg-gradient-to-r from-rose-50 via-violet-50 to-blue-50 rounded-2xl p-6 md:p-8 border border-rose-100/50">
+      <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold mb-2">物料库的战略价值</h3>
+          <div class="grid md:grid-cols-3 gap-3 text-sm text-ink-2">
+            <div><strong class="text-ink-0">质量保底</strong> — AI 在精选 Token 约束下生成，从根源消灭"AI 味"</div>
+            <div><strong class="text-ink-0">效率倍增</strong> — 一套 Token 贯穿全项目，不用逐页修改配色和字号</div>
+            <div><strong class="text-ink-0">经验沉淀</strong> — 物料库本身是"设计品味"的封装，竞品难以快速复制</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: Architecture / 交付物 -->
+<section id="architecture" class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Deliverables & Project Base</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">交付物：可运行的项目启动包</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">不只是文档——<code class="bg-surface-2 px-1.5 py-0.5 rounded text-brand-600 text-xs">git clone</code> → <code class="bg-surface-2 px-1.5 py-0.5 rounded text-brand-600 text-xs">npm run dev</code> → 立刻能跑</p>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-8 mb-12">
+      <!-- Directory Tree: EXPANDED with BaaS -->
+      <div class="bg-ink-0 rounded-2xl p-6 text-white font-mono text-[13px] leading-relaxed">
+        <div class="text-ink-3 text-xs font-sans font-semibold mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+          完整项目目录结构
+        </div>
+        <div class="space-y-0.5">
+          <div class="text-amber-300 font-bold">my-project/</div>
+          <div class="pl-4"><span class="text-green-400">├──</span> <span class="text-cyan-300">.cursorrules</span> <span class="text-ink-3 text-xs ml-1">Cursor 规则</span></div>
+          <div class="pl-4"><span class="text-green-400">├──</span> <span class="text-cyan-300">CLAUDE.md</span> <span class="text-ink-3 text-xs ml-1">Claude Code 规则</span></div>
+          <div class="pl-4"><span class="text-green-400">├──</span> <span class="text-amber-300">docs/</span></div>
+          <div class="pl-8"><span class="text-green-400">├──</span> <span class="text-purple-300">PRD.md</span> · <span class="text-purple-300">spec.md</span> · <span class="text-purple-300">design-system.md</span></div>
+          <div class="pl-4"><span class="text-green-400">├──</span> <span class="text-amber-300">prototypes/</span> <span class="text-ink-3 text-xs ml-1">HTML 原型</span></div>
+          <div class="pl-4 mt-1.5 pt-1.5 border-t border-white/10"><span class="text-green-400">├──</span> <span class="text-amber-300 font-bold">src/</span> <span class="text-emerald-400 text-xs ml-1 font-sans font-semibold">前端骨架</span></div>
+          <div class="pl-8"><span class="text-green-400">├──</span> <span class="text-amber-300">app/</span> <span class="text-ink-3 text-xs ml-1">路由 (按 Spec 页面生成)</span></div>
+          <div class="pl-12"><span class="text-green-400">├──</span> <span class="text-pink-300">(auth)/login · register</span></div>
+          <div class="pl-12"><span class="text-green-400">├──</span> <span class="text-pink-300">dashboard/ · orders/ · ...</span></div>
+          <div class="pl-8"><span class="text-green-400">├──</span> <span class="text-amber-300">components/</span> <span class="text-ink-3 text-xs ml-1">UI + 业务组件</span></div>
+          <div class="pl-8"><span class="text-green-400">└──</span> <span class="text-cyan-300">lib/types.ts</span> <span class="text-ink-3 text-xs ml-1">Spec 数据模型 → TS 类型</span></div>
+          <div class="pl-4 mt-1.5 pt-1.5 border-t border-white/10"><span class="text-green-400">├──</span> <span class="text-amber-300 font-bold">supabase/</span> <span class="text-indigo-400 text-xs ml-1 font-sans font-semibold">BaaS 配置</span></div>
+          <div class="pl-8"><span class="text-green-400">├──</span> <span class="text-indigo-300">migrations/001_init.sql</span> <span class="text-ink-3 text-xs ml-1">Spec → DDL</span></div>
+          <div class="pl-8"><span class="text-green-400">├──</span> <span class="text-indigo-300">seed.sql</span> <span class="text-ink-3 text-xs ml-1">Mock 数据 → 种子数据</span></div>
+          <div class="pl-8"><span class="text-green-400">└──</span> <span class="text-indigo-300">config.toml</span> <span class="text-ink-3 text-xs ml-1">Auth + RLS 配置</span></div>
+          <div class="pl-4 mt-1.5 pt-1.5 border-t border-white/10"><span class="text-green-400">├──</span> <span class="text-cyan-300">tailwind.config.ts</span> <span class="text-ink-3 text-xs ml-1">Token 已写入</span></div>
+          <div class="pl-4"><span class="text-green-400">├──</span> <span class="text-cyan-300">package.json</span></div>
+          <div class="pl-4"><span class="text-green-400">└──</span> <span class="text-cyan-300">.env.example</span></div>
+        </div>
+      </div>
+
+      <!-- Spec Modules -->
+      <div class="space-y-4">
+        <h3 class="text-lg font-bold">Spec 包含的六大模块</h3>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><span class="text-brand-600 font-bold text-xs">01</span></div>
+          <div>
+            <div class="font-semibold text-sm">技术栈与架构约定</div>
+            <p class="text-xs text-ink-2 mt-0.5">技术栈选型、目录结构、命名规范、状态管理方案</p>
+          </div>
+        </div>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0"><span class="text-purple-600 font-bold text-xs">02</span></div>
+          <div>
+            <div class="font-semibold text-sm">Design Tokens</div>
+            <p class="text-xs text-ink-2 mt-0.5">颜色、字号、间距、圆角、阴影，可直接输出为 Tailwind config</p>
+          </div>
+        </div>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center flex-shrink-0"><span class="text-pink-600 font-bold text-xs">03</span></div>
+          <div>
+            <div class="font-semibold text-sm">组件清单与 API</div>
+            <p class="text-xs text-ink-2 mt-0.5">每个组件的 props、状态、交互行为描述</p>
+          </div>
+        </div>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><span class="text-emerald-600 font-bold text-xs">04</span></div>
+          <div>
+            <div class="font-semibold text-sm">数据模型</div>
+            <p class="text-xs text-ink-2 mt-0.5">核心实体的 schema、字段类型、关系，可生成 Prisma schema</p>
+          </div>
+        </div>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0"><span class="text-amber-600 font-bold text-xs">05</span></div>
+          <div>
+            <div class="font-semibold text-sm">API 契约</div>
+            <p class="text-xs text-ink-2 mt-0.5">后端接口列表、请求/响应格式，让前后端 AI 生成时不会对不上</p>
+          </div>
+        </div>
+        <div class="card-hover bg-white rounded-xl p-4 border border-surface-3 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center flex-shrink-0"><span class="text-cyan-600 font-bold text-xs">06</span></div>
+          <div>
+            <div class="font-semibold text-sm">业务规则</div>
+            <p class="text-xs text-ink-2 mt-0.5">PRD 中的"如果...则..."逻辑，结构化表达而非散文</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Base: BaaS Integration -->
+    <div class="mt-16">
+      <div class="text-center mb-10">
+        <span class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-semibold px-4 py-1.5 rounded-full border border-indigo-200/50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7"/></svg>
+          NEW · Project Base
+        </span>
+        <h3 class="text-2xl font-bold mt-4 mb-2">不只是文档，而是能跑的项目</h3>
+        <p class="text-ink-2 max-w-xl mx-auto">集成 Supabase / PocketBase，Spec 中的数据模型自动生成数据库 + Auth 预置</p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 mb-10">
+        <!-- BaaS Options -->
+        <div class="card-hover bg-white rounded-xl p-6 border-2 border-emerald-200">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375"/></svg>
+            </div>
+            <div>
+              <h4 class="font-bold text-sm">Supabase</h4>
+              <span class="text-[11px] text-ink-3">正经项目首选</span>
+            </div>
+          </div>
+          <ul class="space-y-1.5 text-xs text-ink-2">
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>PostgreSQL 数据库</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>Auth 用户认证</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>Row Level Security</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>Edge Functions</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>实时订阅</li>
+          </ul>
+        </div>
+
+        <div class="card-hover bg-white rounded-xl p-6 border border-surface-3">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313"/></svg>
+            </div>
+            <div>
+              <h4 class="font-bold text-sm">PocketBase</h4>
+              <span class="text-[11px] text-ink-3">快速验证首选</span>
+            </div>
+          </div>
+          <ul class="space-y-1.5 text-xs text-ink-2">
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>单文件部署</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>零配置启动</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>内置 Auth</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>SQLite 轻量</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>Admin UI</li>
+          </ul>
+        </div>
+
+        <!-- Auth Preset -->
+        <div class="card-hover bg-white rounded-xl p-6 border border-surface-3">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+            </div>
+            <div>
+              <h4 class="font-bold text-sm">Auth 预置包</h4>
+              <span class="text-[11px] text-ink-3">开箱即用</span>
+            </div>
+          </div>
+          <ul class="space-y-1.5 text-xs text-ink-2">
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>登录 / 注册页面</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>OAuth 社交登录骨架</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>角色权限模型</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>Protected Route</li>
+            <li class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>用户 Profile 页</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Spec → Database Mapping -->
+      <div class="bg-ink-0 rounded-2xl p-6 md:p-8 text-white">
+        <h4 class="font-bold text-center mb-6 flex items-center justify-center gap-2">
+          <span class="text-amber-400">Spec 数据模型</span>
+          <svg class="w-5 h-5 text-ink-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          <span class="text-emerald-400">数据库自动生成</span>
+        </h4>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div class="text-xs text-amber-400 font-semibold mb-2 font-sans">Spec 中定义</div>
+            <div class="font-mono text-xs leading-relaxed">
+              <div><span class="text-purple-400">Order</span> {</div>
+              <div class="pl-4">id: <span class="text-cyan-400">string</span></div>
+              <div class="pl-4">status: <span class="text-cyan-400">OrderStatus</span></div>
+              <div class="pl-4">amount: <span class="text-cyan-400">number</span></div>
+              <div class="pl-4">customer: <span class="text-cyan-400">Customer</span></div>
+              <div class="pl-4">created_at: <span class="text-cyan-400">datetime</span></div>
+              <div>}</div>
+            </div>
+          </div>
+          <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div class="text-xs text-emerald-400 font-semibold mb-2 font-sans">自动生成 Migration</div>
+            <div class="font-mono text-xs leading-relaxed">
+              <div><span class="text-pink-400">CREATE TABLE</span> orders (</div>
+              <div class="pl-4">id <span class="text-cyan-400">UUID</span> PRIMARY KEY,</div>
+              <div class="pl-4">status <span class="text-cyan-400">TEXT</span> CHECK (...),</div>
+              <div class="pl-4">amount <span class="text-cyan-400">DECIMAL</span>(10,2),</div>
+              <div class="pl-4">customer_id <span class="text-cyan-400">UUID</span> REFERENCES,</div>
+              <div class="pl-4">created_at <span class="text-cyan-400">TIMESTAMPTZ</span></div>
+              <div>);</div>
+              <div class="mt-1 text-green-400/80">-- RLS 策略自动生成</div>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs text-white/40 mt-4">PM 在对话中描述的数据结构 → 直接变成能跑的数据库。这是 Bolt / Lovable 做不到的。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: Quality Rules -->
+<section id="quality" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-teal-600 tracking-wider uppercase">Quality Rules Engine</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">工程质量内置引擎</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">PM 描述"做什么"，SpecFlow 自动补上"怎么做才对"——最佳实践、性能、测试、安全全部透明内置</p>
+    </div>
+
+    <!-- Core Concept -->
+    <div class="bg-gradient-to-br from-teal-600 to-cyan-700 rounded-2xl p-8 md:p-10 text-white mb-12">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold mb-3">解决 Vibe Coding 的最后一公里</h3>
+          <p class="text-white/70 leading-relaxed mb-6">AI 帮我写的代码能跑，但我不知道写得好不好——SpecFlow 的回答是：<strong class="text-white">你不需要知道，Spec 替你保证。</strong></p>
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="bg-white/10 rounded-xl p-4 text-center">
+              <div class="text-3xl font-black mb-1">.cursorrules</div>
+              <p class="text-xs text-white/60">自动注入工程规范<br>Cursor 读到即遵守</p>
+            </div>
+            <div class="bg-white/10 rounded-xl p-4 text-center">
+              <div class="text-3xl font-black mb-1">spec.json</div>
+              <p class="text-xs text-white/60">质量约束写入 Spec<br>性能 / 测试 / 安全指标</p>
+            </div>
+            <div class="bg-white/10 rounded-xl p-4 text-center">
+              <div class="text-3xl font-black mb-1">validate_*</div>
+              <p class="text-xs text-white/60">MCP 实时校验<br>代码是否符合质量标准</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quality Presets -->
+    <h3 class="text-xl font-bold mb-6 text-center">Quality Preset · 质量预设包</h3>
+    <p class="text-sm text-ink-3 text-center mb-8">用户创建项目时选一个预设就好，像选 Design Token 主题一样简单</p>
+    <div class="grid md:grid-cols-3 gap-5 mb-12">
+      <div class="card-hover bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+          <h4 class="font-bold">Quick MVP</h4>
+        </div>
+        <p class="text-xs text-ink-3 mb-4">验证想法，快速迭代</p>
+        <div class="space-y-1.5 text-xs text-ink-2">
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>基础错误处理</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>输入验证 (Zod)</div>
+          <div class="flex items-center gap-1.5"><span class="text-ink-4">&#10005;</span><span class="text-ink-3">自动化测试</span></div>
+          <div class="flex items-center gap-1.5"><span class="text-ink-4">&#10005;</span><span class="text-ink-3">性能预算</span></div>
+        </div>
+      </div>
+      <div class="card-hover rounded-xl p-6 border-2 border-teal-200 bg-gradient-to-br from-teal-50 to-white">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-3 h-3 rounded-full bg-teal-500"></div>
+          <h4 class="font-bold">Production Ready</h4>
+          <span class="spec-tag bg-teal-100 text-teal-700 text-[10px]">推荐</span>
+        </div>
+        <p class="text-xs text-ink-3 mb-4">正式产品，可直接上线</p>
+        <div class="space-y-1.5 text-xs text-ink-2">
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>完整错误处理 + 重试</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>E2E 测试骨架自动生成</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>性能预算 (LCP < 1.5s)</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>安全防护 (RLS + XSS)</div>
+        </div>
+      </div>
+      <div class="card-hover bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+          <h4 class="font-bold">Enterprise</h4>
+        </div>
+        <p class="text-xs text-ink-3 mb-4">大公司项目，合规审计</p>
+        <div class="space-y-1.5 text-xs text-ink-2">
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>全部 Production 能力</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>审计日志 + RBAC</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>可观测性 (Sentry/日志)</div>
+          <div class="flex items-center gap-1.5"><span class="text-green-500">&#10003;</span>CI/CD 配置自动生成</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Four Pillars -->
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="section-card bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center"><svg class="w-4.5 h-4.5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg></div>
+          <h4 class="font-bold">性能优化 · 透明内置</h4>
+        </div>
+        <div class="space-y-2 text-xs text-ink-2">
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>RSC vs Client 组件自动划分</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>路由级代码分割 (dynamic import)</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>图片自动优化 (WebP + lazy)</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>列表虚拟化 (&gt;50 条自动启用)</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>API 缓存策略 (SWR/React Query)</div>
+        </div>
+      </div>
+      <div class="section-card bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center"><svg class="w-4.5 h-4.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0"/></svg></div>
+          <h4 class="font-bold">自动化测试 · 从 Spec 生成</h4>
+        </div>
+        <div class="space-y-2 text-xs text-ink-2">
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Spec 业务流程 → E2E 测试用例</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Spec 数据模型 → Zod 验证 schema</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>API 契约 → 接口单元测试骨架</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Mock 数据 → 测试 Fixtures</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Vitest + Playwright 开箱即用</div>
+        </div>
+      </div>
+      <div class="section-card bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center"><svg class="w-4.5 h-4.5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg></div>
+          <h4 class="font-bold">安全防护 · 默认开启</h4>
+        </div>
+        <div class="space-y-2 text-xs text-ink-2">
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Supabase RLS 从权限模型自动生成</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Zod schema 从数据模型自动生成</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>XSS / CSRF 框架层透明处理</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>敏感操作二次确认 (Spec 标注)</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Rate Limiting 配置预置</div>
+        </div>
+      </div>
+      <div class="section-card bg-white rounded-xl p-6 border border-surface-3">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center"><svg class="w-4.5 h-4.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M11.42 15.17l-5.384 3.18.645-5.961L2.32 8.236l5.964-.865L11.42 2.5l2.636 4.871 5.964.865-4.361 4.153.645 5.961-5.384-3.18Z"/></svg></div>
+          <h4 class="font-bold">代码规范 · 零配置执行</h4>
+        </div>
+        <div class="space-y-2 text-xs text-ink-2">
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>组件文件 ≤ 200 行自动拆分提示</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>统一错误边界 + Toast 模式</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Loading / Error / Empty 三态强制</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>禁止 any，TypeScript strict</div>
+          <div class="flex items-center gap-2 bg-surface-1 rounded-lg px-3 py-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>命名 / 目录 / 导出规范</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: 工作台交互 -->
+<section id="workspace" class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Workspace</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">三栏工作台设计</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">对话、预览、Spec 三者实时同步可见，核心交互流程</p>
+    </div>
+
+    <!-- User Flow -->
+    <div class="grid md:grid-cols-4 gap-4 mb-16">
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg>
+        </div>
+        <h4 class="font-bold text-sm mb-1">描述想法</h4>
+        <p class="text-xs text-ink-3">用自然语言描述产品需求</p>
+        <div class="mt-4 text-brand-400 text-2xl">&#8594;</div>
+      </div>
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"/></svg>
+        </div>
+        <h4 class="font-bold text-sm mb-1">AI 追问决策</h4>
+        <p class="text-xs text-ink-3">AI 解析意图并追问关键选择</p>
+        <div class="mt-4 text-brand-400 text-2xl">&#8594;</div>
+      </div>
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-pink-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"/></svg>
+        </div>
+        <h4 class="font-bold text-sm mb-1">实时生成</h4>
+        <p class="text-xs text-ink-3">同步生成原型 + Spec 文档</p>
+        <div class="mt-4 text-brand-400 text-2xl">&#8594;</div>
+      </div>
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        </div>
+        <h4 class="font-bold text-sm mb-1">导出交付</h4>
+        <p class="text-xs text-ink-3">下载完整项目启动包</p>
+      </div>
+    </div>
+
+    <!-- Iteration Types -->
+    <h3 class="text-xl font-bold mb-6 text-center">四种迭代场景</h3>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-surface-1 rounded-xl p-5 border border-surface-3">
+        <div class="text-xs font-bold text-brand-600 uppercase tracking-wider mb-2">微调级</div>
+        <h4 class="font-semibold text-sm mb-2">"按钮换个颜色"</h4>
+        <p class="text-xs text-ink-2">Cursor 直接修改，反向同步回 Spec</p>
+      </div>
+      <div class="bg-surface-1 rounded-xl p-5 border border-surface-3">
+        <div class="text-xs font-bold text-purple-600 uppercase tracking-wider mb-2">功能增量</div>
+        <h4 class="font-semibold text-sm mb-2">"加个导出功能"</h4>
+        <p class="text-xs text-ink-2">回到对话区，更新 PRD/Spec/原型</p>
+      </div>
+      <div class="bg-surface-1 rounded-xl p-5 border border-surface-3">
+        <div class="text-xs font-bold text-pink-600 uppercase tracking-wider mb-2">架构变更</div>
+        <h4 class="font-semibold text-sm mb-2">"权限改 RBAC"</h4>
+        <p class="text-xs text-ink-2">需要变更影响分析，牵动多处</p>
+      </div>
+      <div class="bg-surface-1 rounded-xl p-5 border border-surface-3">
+        <div class="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">重构债务</div>
+        <h4 class="font-semibold text-sm mb-2">"这块代码重写"</h4>
+        <p class="text-xs text-ink-2">Spec 作为重构验收标准</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: MCP -->
+<section id="mcp" class="py-20 bg-gradient-to-b from-ink-0 to-[#1a1f35] text-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-400 tracking-wider uppercase">MCP Integration</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">MCP 集成：从工具到基础设施</h2>
+      <p class="text-white/60 max-w-2xl mx-auto">通过 MCP 协议与 Cursor/Claude Code 双向同步，让 Spec 在整个开发周期持续保鲜</p>
+    </div>
+
+    <!-- Without vs With MCP -->
+    <div class="grid md:grid-cols-2 gap-6 mb-16">
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-3 h-3 rounded-full bg-red-500"></span>
+          <span class="font-semibold">没有 MCP</span>
+        </div>
+        <div class="space-y-3 text-sm text-white/60">
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">1.</span> 用户导出文件
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">2.</span> 离开 SpecFlow
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">3.</span> 文件逐渐失效
+          </div>
+          <div class="flex items-center gap-3 text-red-400">
+            <span class="w-8 text-center">&#10005;</span> 三个月后 Spec 变废纸
+          </div>
+        </div>
+      </div>
+      <div class="bg-brand-600/20 border border-brand-500/30 rounded-2xl p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-3 h-3 rounded-full bg-green-500"></span>
+          <span class="font-semibold">有 MCP</span>
+        </div>
+        <div class="space-y-3 text-sm text-white/80">
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">1.</span> 用户在 Cursor 开发
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">2.</span> 通过 MCP 双向同步
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-8 text-center">3.</span> Spec 持续保鲜
+          </div>
+          <div class="flex items-center gap-3 text-green-400">
+            <span class="w-8 text-center">&#10003;</span> 用户离不开，形成锁定
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP Tools -->
+    <div class="grid md:grid-cols-3 gap-6 mb-16">
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+        </div>
+        <h3 class="font-bold mb-3">读取类工具</h3>
+        <p class="text-sm text-white/50 mb-4">让 Cursor 懂你的 Spec</p>
+        <div class="space-y-2 font-mono text-xs">
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-blue-400">get_prd()</span> <span class="text-white/30 ml-2">读取 PRD</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-blue-400">get_spec(module)</span> <span class="text-white/30 ml-2">读取模块 spec</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-blue-400">get_design_tokens()</span> <span class="text-white/30 ml-2">获取设计 token</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-blue-400">get_component_spec()</span> <span class="text-white/30 ml-2">组件 API</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-blue-400">list_pending_features()</span> <span class="text-white/30 ml-2">待实现功能</span></div>
+        </div>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+        </div>
+        <h3 class="font-bold mb-3">写入类工具</h3>
+        <p class="text-sm text-white/50 mb-4">让 Cursor 更新 Spec</p>
+        <div class="space-y-2 font-mono text-xs">
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-green-400">update_spec()</span> <span class="text-white/30 ml-2">更新 spec</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-green-400">add_data_field()</span> <span class="text-white/30 ml-2">添加数据字段</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-green-400">mark_feature_done()</span> <span class="text-white/30 ml-2">标记已完成</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-green-400">report_deviation()</span> <span class="text-white/30 ml-2">偏离记录</span></div>
+        </div>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+        </div>
+        <h3 class="font-bold mb-3">校验类工具</h3>
+        <p class="text-sm text-white/50 mb-4">最有价值的能力</p>
+        <div class="space-y-2 font-mono text-xs">
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-amber-400">validate_against_spec()</span> <span class="text-white/30 ml-2">代码符合 Spec？</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-amber-400">check_design_token()</span> <span class="text-white/30 ml-2">Token 使用正确？</span></div>
+          <div class="bg-white/5 rounded-lg px-3 py-2"><span class="text-amber-400">find_undocumented()</span> <span class="text-white/30 ml-2">未记录的变更？</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP Workflow -->
+    <div class="bg-white/5 border border-white/10 rounded-2xl p-8">
+      <h3 class="font-bold text-lg mb-6 text-center">完整工作流示例</h3>
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white/10 rounded-xl p-4 mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-5 h-5 rounded bg-purple-500/30 flex items-center justify-center"><svg class="w-3 h-3 text-purple-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg></div>
+            <span class="text-sm text-white/80">开发者在 Cursor 里说：</span>
+          </div>
+          <p class="text-sm font-medium text-white/90 pl-7">"实现一下订单导出功能"</p>
+        </div>
+        <div class="space-y-2 mb-4 pl-4">
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-brand-500/30 flex items-center justify-center text-xs text-brand-300 font-bold">1</span>
+            <code class="text-blue-300 text-xs">get_prd("订单管理")</code>
+            <span class="text-white/40 text-xs">→ 读取业务意图</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-brand-500/30 flex items-center justify-center text-xs text-brand-300 font-bold">2</span>
+            <code class="text-blue-300 text-xs">get_spec("订单")</code>
+            <span class="text-white/40 text-xs">→ 读取数据模型</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-brand-500/30 flex items-center justify-center text-xs text-brand-300 font-bold">3</span>
+            <code class="text-blue-300 text-xs">get_design_tokens()</code>
+            <span class="text-white/40 text-xs">→ 读取设计规范</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-brand-500/30 flex items-center justify-center text-xs text-brand-300 font-bold">4</span>
+            <code class="text-blue-300 text-xs">get_component_spec("Button","Modal")</code>
+            <span class="text-white/40 text-xs">→ 复用组件</span>
+          </div>
+        </div>
+        <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 mb-4">
+          <div class="text-sm text-green-400 font-medium mb-1">Cursor 生成代码</div>
+          <p class="text-xs text-green-300/60">自动符合 PRD 业务逻辑、用对的字段、统一的组件、遵循设计规范</p>
+        </div>
+        <div class="space-y-2 pl-4">
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-green-500/30 flex items-center justify-center text-xs text-green-300 font-bold">5</span>
+            <code class="text-green-300 text-xs">update_spec("订单", {新增导出功能})</code>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="w-6 h-6 rounded-full bg-green-500/30 flex items-center justify-center text-xs text-green-300 font-bold">6</span>
+            <code class="text-green-300 text-xs">mark_feature_done("order_export")</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: Roadmap -->
+<section id="roadmap" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Roadmap</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">落地路线图</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">从最小闭环验证到生态级基础设施，分五个阶段稳步推进</p>
+    </div>
+
+    <div class="timeline-line space-y-8 pl-6 md:pl-12">
+      <!-- MVP -->
+      <div class="relative pl-10">
+        <div class="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center z-10 shadow-lg shadow-brand-600/30">
+          <span class="text-white font-bold text-sm">MVP</span>
+        </div>
+        <div class="bg-white rounded-2xl p-6 md:p-8 border border-surface-3 ml-4">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-xl font-bold">MVP 阶段</h3>
+            <span class="spec-tag bg-brand-100 text-brand-700">1-2 个月</span>
+            <span class="spec-tag bg-green-100 text-green-700">当前阶段</span>
+          </div>
+          <p class="text-sm text-ink-2 mb-4">验证"对话 → HTML → Spec"最小闭环</p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs font-bold text-green-600 uppercase tracking-wider mb-2">做什么</div>
+              <ul class="space-y-1.5 text-sm text-ink-2">
+                <li class="flex items-center gap-2"><span class="text-green-500">&#10003;</span>三栏布局：对话 + 预览 + Spec</li>
+                <li class="flex items-center gap-2"><span class="text-green-500">&#10003;</span>对话直出单文件 HTML</li>
+                <li class="flex items-center gap-2"><span class="text-green-500">&#10003;</span>Spec 三要素：页面、数据、Tokens</li>
+                <li class="flex items-center gap-2"><span class="text-green-500">&#10003;</span>支持下载 HTML + Spec 文件夹</li>
+              </ul>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-red-600 uppercase tracking-wider mb-2">不做什么</div>
+              <ul class="space-y-1.5 text-sm text-ink-2">
+                <li class="flex items-center gap-2"><span class="text-red-400">&#10005;</span>物料库、模板系统</li>
+                <li class="flex items-center gap-2"><span class="text-red-400">&#10005;</span>画布精细调整</li>
+                <li class="flex items-center gap-2"><span class="text-red-400">&#10005;</span>Project Base / BaaS</li>
+                <li class="flex items-center gap-2"><span class="text-red-400">&#10005;</span>MCP、协作、版本历史</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mt-4 bg-amber-50 rounded-xl p-3 border border-amber-200/50">
+            <p class="text-xs text-amber-700"><strong>验证标准：</strong>找 5-10 个真实用户产出真实项目，看是否主动来用第二次、是否把 Spec 给开发看。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1 -->
+      <div class="relative pl-10">
+        <div class="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-purple-600 flex items-center justify-center z-10 shadow-lg shadow-purple-600/30">
+          <span class="text-white font-bold text-sm">v1</span>
+        </div>
+        <div class="bg-white rounded-2xl p-6 md:p-8 border border-surface-3 ml-4">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-xl font-bold">v1 阶段</h3>
+            <span class="spec-tag bg-purple-100 text-purple-700">3-6 个月</span>
+          </div>
+          <p class="text-sm text-ink-2 mb-4">物料库上线 + Spec 结构在真实使用中迭代稳定</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="spec-tag bg-rose-50 text-rose-600 border border-rose-200">Design Token 主题模板 ×5</span>
+            <span class="spec-tag bg-rose-50 text-rose-600 border border-rose-200">组件交互物料库 v1</span>
+            <span class="spec-tag bg-rose-50 text-rose-600 border border-rose-200">动效预设库</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">业务模板 5-10 个</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">画布精修 + Diff 更新</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">.cursorrules 输出</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- v1.5 NEW -->
+      <div class="relative pl-10">
+        <div class="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center z-10 shadow-lg shadow-indigo-600/30">
+          <span class="text-white font-bold text-xs">v1.5</span>
+        </div>
+        <div class="bg-white rounded-2xl p-6 md:p-8 border-2 border-indigo-200 ml-4">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-xl font-bold">v1.5 阶段</h3>
+            <span class="spec-tag bg-indigo-100 text-indigo-700">4-7 个月</span>
+            <span class="spec-tag bg-indigo-500 text-white">新增</span>
+          </div>
+          <p class="text-sm text-ink-2 mb-4">Project Base 上线——导出可运行项目 + BaaS 集成</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">Supabase 集成</span>
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">PocketBase 集成</span>
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">Spec → Migration 自动生成</span>
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">Auth 预置包</span>
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">前端项目骨架 (Next.js)</span>
+            <span class="spec-tag bg-indigo-50 text-indigo-600 border border-indigo-200">Seed Data 生成</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- v2 -->
+      <div class="relative pl-10">
+        <div class="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-pink-600 flex items-center justify-center z-10 shadow-lg shadow-pink-600/30">
+          <span class="text-white font-bold text-sm">v2</span>
+        </div>
+        <div class="bg-white rounded-2xl p-6 md:p-8 border border-surface-3 ml-4">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-xl font-bold">v2 阶段</h3>
+            <span class="spec-tag bg-pink-100 text-pink-700">8-14 个月</span>
+          </div>
+          <p class="text-sm text-ink-2 mb-4">发布 MCP server，打通 Cursor/Claude Code 集成 + DB schema 同步</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="spec-tag bg-surface-2 text-ink-1">MCP server 本地版</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">读取 / 写入 / 校验工具</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">DB Migration 双向同步</span>
+            <span class="spec-tag bg-teal-50 text-teal-700 border border-teal-200">Quality Rules Engine</span>
+            <span class="spec-tag bg-teal-50 text-teal-700 border border-teal-200">质量预设包 (MVP/Prod/Enterprise)</span>
+            <span class="spec-tag bg-teal-50 text-teal-700 border border-teal-200">MCP 质量校验 validate_*</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">Skill 体系 v1</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">物料库市场 v1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- v3+ -->
+      <div class="relative pl-10">
+        <div class="absolute left-0 top-0 w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center z-10 shadow-lg shadow-emerald-600/30">
+          <span class="text-white font-bold text-sm">v3+</span>
+        </div>
+        <div class="bg-white rounded-2xl p-6 md:p-8 border border-surface-3 ml-4">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-xl font-bold">v3+ 阶段</h3>
+            <span class="spec-tag bg-emerald-100 text-emerald-700">12 个月以上</span>
+          </div>
+          <p class="text-sm text-ink-2 mb-4">反向同步、漂移检测、团队协作、物料生态</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="spec-tag bg-surface-2 text-ink-1">反向同步</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">漂移检测报告</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">团队协作</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">更多 BaaS (Convex / Firebase)</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">物料市场 (社区贡献)</span>
+            <span class="spec-tag bg-surface-2 text-ink-1">行业方案模板</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section: Moat -->
+<section class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Competitive Moat</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">护城河分析</h2>
+      <p class="text-ink-2 max-w-2xl mx-auto">多重壁垒叠加，与 Cursor/Claude Code 共生而非竞争</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-4 mb-10">
+      <div class="card-hover rounded-xl bg-gradient-to-br from-brand-50 to-white p-6 border border-brand-100">
+        <div class="text-3xl mb-3">&#128274;</div>
+        <h4 class="font-bold mb-2">工作流锁定</h4>
+        <p class="text-sm text-ink-2">Cursor 每次写代码都通过 MCP 调用 Spec，停用会让开发流程变慢</p>
+      </div>
+      <div class="card-hover rounded-xl bg-gradient-to-br from-purple-50 to-white p-6 border border-purple-100">
+        <div class="text-3xl mb-3">&#128218;</div>
+        <h4 class="font-bold mb-2">历史沉淀</h4>
+        <p class="text-sm text-ink-2">项目用得越久，Spec 中的决策、迭代历史、业务上下文越多，迁移成本极高</p>
+      </div>
+      <div class="card-hover rounded-xl bg-gradient-to-br from-pink-50 to-white p-6 border border-pink-100">
+        <div class="text-3xl mb-3">&#127919;</div>
+        <h4 class="font-bold mb-2">领域 Skill 库</h4>
+        <p class="text-sm text-ink-2">业务模板和 Skill 包是"产品设计经验"的封装，纯技术无法复制</p>
+      </div>
+      <div class="card-hover rounded-xl bg-gradient-to-br from-amber-50 to-white p-6 border border-amber-100">
+        <div class="text-3xl mb-3">&#127912;</div>
+        <h4 class="font-bold mb-2">Design Rules</h4>
+        <p class="text-sm text-ink-2">"设计语汇→具体修改"的映射库需长期打磨，是经验型壁垒</p>
+      </div>
+      <div class="card-hover rounded-xl bg-gradient-to-br from-emerald-50 to-white p-6 border border-emerald-100">
+        <div class="text-3xl mb-3">&#128196;</div>
+        <h4 class="font-bold mb-2">Spec 格式标准</h4>
+        <p class="text-sm text-ink-2">如果被生态采纳成事实标准，会形成生态依赖</p>
+      </div>
+      <div class="card-hover rounded-xl bg-gradient-to-br from-cyan-50 to-white p-6 border border-cyan-100">
+        <div class="text-3xl mb-3">&#128101;</div>
+        <h4 class="font-bold mb-2">团队协作</h4>
+        <p class="text-sm text-ink-2">多开发者通过 MCP 共享 Spec，团队对齐成本大幅下降</p>
+      </div>
+    </div>
+    <div class="bg-gradient-to-r from-brand-50 to-purple-50 rounded-2xl p-6 md:p-8 border border-brand-100/50 text-center">
+      <h3 class="text-lg font-bold mb-2">与 Cursor/Claude Code 的关系</h3>
+      <p class="text-sm text-ink-2 max-w-xl mx-auto">共生而非竞争。SpecFlow 产出 PRD/Spec，Cursor 消费 PRD/Spec 写代码——上下游关系。不需要打赢 Cursor，只需要让 Cursor 用户离不开 SpecFlow。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Section: Risks -->
+<section id="risks" class="py-20">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-sm font-semibold text-brand-600 tracking-wider uppercase">Risk Analysis</span>
+      <h2 class="text-3xl md:text-4xl font-bold mt-3 mb-4">风险与应对</h2>
+    </div>
+    <div class="space-y-4">
+      <div class="bg-white rounded-xl border border-surface-3 overflow-hidden">
+        <button onclick="this.parentElement.querySelector('.risk-body').classList.toggle('hidden');this.querySelector('.risk-arrow').classList.toggle('rotate-90')" class="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-surface-1 transition-colors">
+          <span class="risk-arrow transition-transform rotate-90 text-ink-3">&#9654;</span>
+          <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
+          <span class="font-semibold flex-1">生成质量不达预期</span>
+          <span class="spec-tag bg-red-100 text-red-600">高风险</span>
+        </button>
+        <div class="risk-body px-6 pb-4 pl-16">
+          <p class="text-sm text-ink-2 mb-2"><strong>表现：</strong>生成的 HTML 充满"AI 味"——千篇一律的渐变紫色、堆砌卡片，用户失去信任</p>
+          <p class="text-sm text-ink-2"><strong>应对：</strong>MVP 阶段最大投入在 Prompt 工程与设计审美训练；建立内部"生成质量评分"机制</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-surface-3 overflow-hidden">
+        <button onclick="this.parentElement.querySelector('.risk-body').classList.toggle('hidden');this.querySelector('.risk-arrow').classList.toggle('rotate-90')" class="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-surface-1 transition-colors">
+          <span class="risk-arrow transition-transform rotate-90 text-ink-3">&#9654;</span>
+          <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+          <span class="font-semibold flex-1">Spec 形态错误</span>
+          <span class="spec-tag bg-amber-100 text-amber-600">中风险</span>
+        </button>
+        <div class="risk-body px-6 pb-4 pl-16">
+          <p class="text-sm text-ink-2 mb-2"><strong>表现：</strong>用户觉得 Spec 没用，只把 HTML 截图发给开发</p>
+          <p class="text-sm text-ink-2"><strong>应对：</strong>MVP 阶段每周访谈用户，迭代 Spec 结构；不要一开始把 Spec 设计得太重</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-surface-3 overflow-hidden">
+        <button onclick="this.parentElement.querySelector('.risk-body').classList.toggle('hidden');this.querySelector('.risk-arrow').classList.toggle('rotate-90')" class="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-surface-1 transition-colors">
+          <span class="risk-arrow transition-transform rotate-90 text-ink-3">&#9654;</span>
+          <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+          <span class="font-semibold flex-1">市场被开发者工具反向蚕食</span>
+          <span class="spec-tag bg-amber-100 text-amber-600">中风险</span>
+        </button>
+        <div class="risk-body px-6 pb-4 pl-16">
+          <p class="text-sm text-ink-2 mb-2"><strong>表现：</strong>Pencil.dev、Cursor 等向上扩展加入 PRD 生成功能</p>
+          <p class="text-sm text-ink-2"><strong>应对：</strong>护城河必须建立在领域 know-how 而非纯技术；深度服务 PM 工作流</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-surface-3 overflow-hidden">
+        <button onclick="this.parentElement.querySelector('.risk-body').classList.toggle('hidden');this.querySelector('.risk-arrow').classList.toggle('rotate-90')" class="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-surface-1 transition-colors">
+          <span class="risk-arrow transition-transform rotate-90 text-ink-3">&#9654;</span>
+          <span class="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0"></span>
+          <span class="font-semibold flex-1">PM 付费意愿低</span>
+          <span class="spec-tag bg-yellow-100 text-yellow-600">中低风险</span>
+        </button>
+        <div class="risk-body px-6 pb-4 pl-16">
+          <p class="text-sm text-ink-2 mb-2"><strong>表现：</strong>目标用户走公司预算流程，决策周期长</p>
+          <p class="text-sm text-ink-2"><strong>应对：</strong>并行服务付费意愿更强的独立创业者；考虑 Team 版的销售策略</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-surface-3 overflow-hidden">
+        <button onclick="this.parentElement.querySelector('.risk-body').classList.toggle('hidden');this.querySelector('.risk-arrow').classList.toggle('rotate-90')" class="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-surface-1 transition-colors">
+          <span class="risk-arrow transition-transform rotate-90 text-ink-3">&#9654;</span>
+          <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+          <span class="font-semibold flex-1">技术栈绑定问题</span>
+          <span class="spec-tag bg-blue-100 text-blue-600">低风险</span>
+        </button>
+        <div class="risk-body px-6 pb-4 pl-16">
+          <p class="text-sm text-ink-2 mb-2"><strong>表现：</strong>支持单一栈市场窄，支持所有栈精度低</p>
+          <p class="text-sm text-ink-2"><strong>应对：</strong>先死磕 Next.js + Tailwind 这一套主流栈，做到极致再扩展</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Key Reminders -->
+<section class="py-20 bg-gradient-to-br from-brand-600 via-purple-600 to-pink-600 text-white">
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <h2 class="text-3xl md:text-4xl font-bold mb-4">三条最重要的建议</h2>
+    <p class="text-white/60 mb-12">在设计和实现过程中始终牢记</p>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="bg-white/10 rounded-2xl p-6 border border-white/10">
+        <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4 text-2xl font-black">1</div>
+        <h3 class="font-bold mb-2">质量是 1，其他是 0</h3>
+        <p class="text-sm text-white/70">MVP 阶段所有花哨功能的前提是——第一次生成出来的东西就要好看、好用</p>
+      </div>
+      <div class="bg-white/10 rounded-2xl p-6 border border-white/10">
+        <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4 text-2xl font-black">2</div>
+        <h3 class="font-bold mb-2">找到灵魂场景</h3>
+        <p class="text-sm text-white/70">功能多不等于产品好。围绕一个最锐利的痛点构建，其他都是辅助</p>
+      </div>
+      <div class="bg-white/10 rounded-2xl p-6 border border-white/10">
+        <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4 text-2xl font-black">3</div>
+        <h3 class="font-bold mb-2">MCP 不要 MVP 做</h3>
+        <p class="text-sm text-white/70">MCP 是终极杀招，但要等 Spec 格式稳定了再打</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="py-10 bg-ink-0 text-white/40">
+  <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-2">
+      <div class="w-6 h-6 rounded-md bg-gradient-to-br from-brand-600 to-purple-600 flex items-center justify-center">
+        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+      </div>
+      <span class="text-sm font-medium text-white/60">SpecFlow</span>
+    </div>
+    <div class="text-sm">产品设计稿 · v0.1 · 2026 年 5 月</div>
+    <div class="text-sm">构想阶段 · 内部文档</div>
+  </div>
+</footer>
+
+<script>
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(el => {
+    el.classList.remove('tab-active');
+    el.classList.add('text-ink-3');
+    el.style.borderBottomColor = 'transparent';
+  });
+  document.getElementById(tabId).classList.remove('hidden');
+  const btn = document.querySelector(`[data-tab="${tabId}"]`);
+  btn.classList.add('tab-active');
+  btn.classList.remove('text-ink-3');
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.animationPlayState = 'running';
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-in').forEach(el => {
+  el.style.animationPlayState = 'paused';
+  observer.observe(el);
+});
+
+let lastScrollY = 0;
+window.addEventListener('scroll', () => {
+  const nav = document.getElementById('nav');
+  if (window.scrollY > 50) {
+    nav.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+  } else {
+    nav.style.boxShadow = 'none';
+  }
+
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-link');
+  let current = '';
+  sections.forEach(section => {
+    const sectionTop = section.offsetTop - 100;
+    if (window.scrollY >= sectionTop) {
+      current = section.getAttribute('id');
+    }
+  });
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === `#${current}`) {
+      link.classList.add('active');
+    }
+  });
+
+  lastScrollY = window.scrollY;
+});
+</script>
+
+</body>
+</html>
