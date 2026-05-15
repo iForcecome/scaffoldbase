@@ -37,6 +37,8 @@ export const api = {
       request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Project>) =>
       request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/projects/${id}`, { method: 'DELETE' }),
   },
 
   pages: {

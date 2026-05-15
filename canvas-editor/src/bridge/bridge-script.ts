@@ -295,7 +295,7 @@ export function getBridgeScript(): string {
         if (el5) {
           var cs = window.getComputedStyle(el5);
           var styles = {};
-          var props = ['display','flex-direction','justify-content','align-items','gap','width','height','padding','margin','font-size','font-weight','font-family','color','background-color','border-radius','border','overflow'];
+          var props = ['display','flex-direction','justify-content','align-items','gap','width','height','min-width','max-width','padding','margin','font-size','font-weight','font-family','color','background-color','border-radius','border','overflow'];
           for (var i = 0; i < props.length; i++) {
             styles[props[i]] = cs.getPropertyValue(props[i]);
           }
@@ -352,6 +352,7 @@ export function getBridgeScript(): string {
   });
 
   function init() {
+    if (document.body) assignIds(document.body);
     parent.postMessage({ type: 'ready' }, '*');
     setTimeout(sendTree, 300);
   }

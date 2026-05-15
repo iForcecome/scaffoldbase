@@ -1,8 +1,9 @@
 import {
   MousePointer2, ZoomIn, Square, Type, Plus, Play,
   Monitor, Smartphone, Undo2, Redo2, Download,
-  FlaskConical,
+  FlaskConical, ArrowLeft,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useEditorStore, type Tool, type Device } from '../../stores/editor-store'
 
 const tools: { id: Tool; icon: typeof MousePointer2; label: string; key: string }[] = [
@@ -20,8 +21,10 @@ const devices: { id: Device; icon: typeof Monitor; label: string }[] = [
 ]
 
 export function TopBar() {
+  const navigate = useNavigate()
   const pages = useEditorStore(s => s.pages)
   const activePageId = useEditorStore(s => s.activePageId)
+  const projectName = useEditorStore(s => s.projectName)
   const activeTool = useEditorStore(s => s.activeTool)
   const setTool = useEditorStore(s => s.setTool)
   const device = useEditorStore(s => s.device)
@@ -33,9 +36,16 @@ export function TopBar() {
 
   return (
     <header className="h-12 bg-white border-b border-surface-3 flex items-center px-4 gap-3 shrink-0 z-40">
-      {/* Logo */}
+      {/* Back + Logo */}
       <div className="flex items-center gap-2 pr-3 border-r border-surface-3">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-purple-600 flex items-center justify-center">
+        <button
+          onClick={() => navigate('/')}
+          className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-surface-1 transition-colors text-ink-2 hover:text-ink-0 cursor-pointer"
+          title="返回项目列表"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="w-7 h-7 rounded-lg bg-linear-to-br from-brand-600 to-purple-600 flex items-center justify-center">
           <FlaskConical className="w-3.5 h-3.5 text-white" />
         </div>
         <span className="text-sm font-bold tracking-tight">SpecFlow</span>
@@ -44,7 +54,7 @@ export function TopBar() {
       {/* Breadcrumb */}
       <div className="flex items-center text-xs text-ink-3">
         <span className="breadcrumb-separator font-medium text-ink-2">
-          订单管理系统
+          {projectName || '未命名项目'}
         </span>
         <span className="font-medium text-ink-1">
           {pages.find(p => p.id === activePageId)?.title}

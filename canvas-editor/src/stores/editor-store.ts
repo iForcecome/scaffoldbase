@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { mockPages } from '../data/mock-pages'
+import { api } from '../services/api'
 
 export interface DOMNode {
   id: string
@@ -35,6 +35,8 @@ export interface SelectedElement {
 }
 
 interface EditorState {
+  projectId: string | null
+  projectName: string
   pages: Page[]
   activePageId: string
   domTree: DOMNode[]
@@ -45,15 +47,18 @@ interface EditorState {
   hoveredRect: Rect | null
   viewport: { x: number; y: number; zoom: number }
   device: Device
+  customWidth: number | null
   activeTool: Tool
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   iframeHeight: number
   undoStack: string[]
   redoStack: string[]
+  saving: boolean
 }
 
 interface EditorActions {
+  loadProject: (projectId: string, name: string, pages: Page[]) => void
   setActivePage: (id: string) => void
   setDomTree: (tree: DOMNode[]) => void
   selectElement: (id: string | null, rect?: Rect | null, label?: string | null, multi?: boolean) => void
@@ -63,6 +68,7 @@ interface EditorActions {
   setViewport: (v: Partial<EditorState['viewport']>) => void
   zoomTo: (zoom: number) => void
   setDevice: (d: Device) => void
+  setCustomWidth: (w: number) => void
   setTool: (t: Tool) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
@@ -78,6 +84,14 @@ interface EditorActions {
   deletePage: (id: string) => void
   duplicatePage: (id: string) => void
   renamePage: (id: string, title: string) => void
+}
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedSave(projectId: string, pageId: string, html: string, title?: string) {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    api.pages.update(projectId, pageId, { html, title }).catch(console.error)
+  }, 1500)
 }
 
 let _bridgeSender: ((msg: Record<string, unknown>) => void) | null = null
@@ -120,10 +134,14 @@ export function requestFromBridge<T = Record<string, unknown>>(
   })
 }
 
+const DEFAULT_HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><script src="https://cdn.tailwindcss.com"><\/script></head><body class="bg-white p-8"><h1 class="text-2xl font-bold">新页面</h1><p class="text-gray-500 mt-2">开始编辑你的页面</p></body></html>'
+
 export const useEditorStore = create<EditorState & EditorActions>()(
   immer((set, get) => ({
-    pages: mockPages,
-    activePageId: mockPages[0].id,
+    projectId: null,
+    projectName: '',
+    pages: [],
+    activePageId: '',
     domTree: [],
     selectedIds: [],
     selectedElements: {},
@@ -132,12 +150,38 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     hoveredRect: null,
     viewport: { x: 0, y: 0, zoom: 1 },
     device: 'desktop',
+    customWidth: null,
     activeTool: 'select',
     leftPanelOpen: true,
     rightPanelOpen: true,
     iframeHeight: 800,
     undoStack: [],
     redoStack: [],
+    saving: false,
+
+    loadProject: (projectId, name, pages) => set((s) => {
+      s.projectId = projectId
+      s.projectName = name
+      if (pages.length === 0) {
+        const defaultPage: Page = { id: 'page-' + Date.now(), title: '首页', html: DEFAULT_HTML }
+        s.pages = [defaultPage]
+        s.activePageId = defaultPage.id
+        api.pages.update(projectId, defaultPage.id, { html: defaultPage.html, title: defaultPage.title }).catch(console.error)
+      } else {
+        s.pages = pages
+        s.activePageId = pages[0].id
+      }
+      s.domTree = []
+      s.selectedIds = []
+      s.selectedElements = {}
+      s.selectedStyles = null
+      s.hoveredId = null
+      s.hoveredRect = null
+      s.viewport = { x: 0, y: 0, zoom: 1 }
+      s.undoStack = []
+      s.redoStack = []
+      s.activeTool = 'select'
+    }),
 
     setActivePage: (id) => set((s) => {
       s.activePageId = id
@@ -203,7 +247,13 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     setDevice: (d) => set((s) => {
       s.device = d
+      s.customWidth = null
       s.viewport = { x: 0, y: 0, zoom: 1 }
+    }),
+
+    setCustomWidth: (w) => set((s) => {
+      s.customWidth = Math.max(320, Math.min(2560, w))
+      s.viewport = { x: 0, y: 0, zoom: s.viewport.zoom }
     }),
 
     setIframeHeight: (h) => set((s) => { s.iframeHeight = Math.max(768, h) }),
@@ -227,7 +277,12 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     updatePageHTML: (pageId, html) => set((s) => {
       const page = s.pages.find(p => p.id === pageId)
-      if (page) page.html = html
+      if (page) {
+        page.html = html
+        if (s.projectId) {
+          debouncedSave(s.projectId, pageId, html, page.title)
+        }
+      }
     }),
 
     pushUndo: () => set((s) => {
@@ -254,7 +309,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       page.html = s.redoStack.pop()!
     }),
 
-    getDeviceWidth: () => DEVICE_WIDTHS[get().device],
+    getDeviceWidth: () => get().customWidth ?? DEVICE_WIDTHS[get().device],
     getActivePage: () => get().pages.find(p => p.id === get().activePageId),
     getPrimarySelectedId: () => {
       const ids = get().selectedIds
@@ -263,15 +318,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     addPage: () => set((s) => {
       const id = 'page-' + Date.now()
-      s.pages.push({
-        id,
-        title: '新页面',
-        html: '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><script src="https://cdn.tailwindcss.com"><\/script></head><body class="bg-white p-8"><h1 class="text-2xl font-bold">新页面</h1></body></html>',
-      })
+      const html = DEFAULT_HTML
+      s.pages.push({ id, title: '新页面', html })
       s.activePageId = id
       s.selectedIds = []
       s.selectedElements = {}
       s.selectedStyles = null
+      if (s.projectId) {
+        api.pages.update(s.projectId, id, { html, title: '新页面' }).catch(console.error)
+      }
     }),
 
     deletePage: (id) => set((s) => {

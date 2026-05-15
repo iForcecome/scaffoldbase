@@ -76,6 +76,29 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     return { ...project, spec: latestSpec ?? null }
   })
 
+  app.delete('/projects/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const [deleted] = await db.delete(projects)
+      .where(eq(projects.id, id))
+      .returning()
+
+    if (!deleted) {
+      reply.status(404)
+      return { error: 'Project not found' }
+    }
+
+    return { success: true }
+  })
+
   app.patch('/projects/:id', {
     schema: {
       params: {

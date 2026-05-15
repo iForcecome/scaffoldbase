@@ -1,39 +1,25 @@
-import { useEffect } from 'react'
-import { TopBar } from './components/TopBar/TopBar'
-import { LeftPanel } from './components/LeftPanel/LeftPanel'
-import { CanvasArea } from './components/Canvas/CanvasArea'
-import { RightPanel } from './components/RightPanel/RightPanel'
-import { useEditorStore } from './stores/editor-store'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+
+const ProjectList = lazy(() => import('./pages/ProjectList'))
+const EditorPage = lazy(() => import('./pages/EditorPage'))
+
+function Loading() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-canvas-bg">
+      <div className="w-8 h-8 border-2 border-brand-300 border-t-brand-600 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
-  const isPreview = useEditorStore(s => s.activeTool === 'preview')
-  const setTool = useEditorStore(s => s.setTool)
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const store = useEditorStore.getState()
-      if (e.key === 'p' || e.key === 'P') {
-        if (store.activeTool !== 'preview') {
-          setTool('preview')
-        }
-      }
-      if (e.key === 'Escape' && store.activeTool === 'preview') {
-        setTool('select')
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setTool])
-
   return (
-    <div className="h-screen flex flex-col bg-canvas-bg font-sans text-ink-0 select-none">
-      <TopBar />
-      <div className="flex-1 flex overflow-hidden">
-        {!isPreview && <LeftPanel />}
-        <CanvasArea />
-        {!isPreview && <RightPanel />}
-      </div>
-    </div>
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/" element={<ProjectList />} />
+        <Route path="/editor/:projectId" element={<EditorPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
