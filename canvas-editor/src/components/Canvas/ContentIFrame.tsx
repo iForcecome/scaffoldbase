@@ -17,6 +17,8 @@ function inferLabelFromEl(el: Element): string {
   return el.getAttribute('data-sf-id') || el.tagName.toLowerCase()
 }
 
+const TEXT_TAGS = new Set(['h1','h2','h3','h4','h5','h6','p','span','a','button','label','li','td','th','figcaption','blockquote','caption','dt','dd'])
+
 export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
   const pageHtml = useEditorStore(s => {
     const page = s.pages.find(p => p.id === s.activePageId)
@@ -26,8 +28,10 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
   const iframeHeight = useEditorStore(s => s.iframeHeight)
   const setIframeHeight = useEditorStore(s => s.setIframeHeight)
   const isPreview = useEditorStore(s => s.activeTool === 'preview')
+  const editingTextId = useEditorStore(s => s.editingTextId)
   const selectElement = useEditorStore(s => s.selectElement)
   const hoverElement = useEditorStore(s => s.hoverElement)
+  const setEditingText = useEditorStore(s => s.setEditingText)
 
   const [srcDoc, setSrcDoc] = useState('')
   const prevPageIdRef = useRef(activePageId)
@@ -105,6 +109,24 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
     hoverElement(null)
   }, [hoverElement])
 
+  const handleOverlayDblClick = useCallback((e: React.MouseEvent) => {
+    const hit = getElementAtPoint(e.clientX, e.clientY)
+    if (!hit) return
+    try {
+      const doc = iframeRef.current?.contentDocument
+      if (!doc) return
+      const el = doc.querySelector(`[data-sf-id="${hit.id}"]`)
+      if (!el) return
+      const tag = el.tagName.toLowerCase()
+      if (TEXT_TAGS.has(tag)) {
+        setEditingText(hit.id)
+        sendBridgeMessage({ type: 'start-edit', id: hit.id })
+      }
+    } catch { /* ignore */ }
+  }, [getElementAtPoint, iframeRef, setEditingText])
+
+  const isEditing = editingTextId !== null
+
   return (
     <div className="relative" style={{ width: deviceWidth, height: iframeHeight }}>
       <iframe
@@ -115,17 +137,18 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
         style={{
           width: deviceWidth,
           height: iframeHeight,
-          pointerEvents: isPreview ? 'auto' : 'none',
+          pointerEvents: (isPreview || isEditing) ? 'auto' : 'none',
         }}
         title="Page Preview"
         onLoad={handleLoad}
       />
-      {!isPreview && (
+      {!isPreview && !isEditing && (
         <div
           className="absolute inset-0 z-10"
           style={{ cursor: 'default' }}
           onMouseMove={handleOverlayMove}
           onClick={handleOverlayClick}
+          onDoubleClick={handleOverlayDblClick}
           onMouseLeave={handleOverlayLeave}
         />
       )}

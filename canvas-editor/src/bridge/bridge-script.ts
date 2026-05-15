@@ -340,6 +340,34 @@ export function getBridgeScript(): string {
         parent.postMessage({ type: 'page-html', html: '<!DOCTYPE html>\\n' + clone.outerHTML }, '*');
         break;
       }
+      case 'start-edit': {
+        var elEdit = getElementById(data.id);
+        if (elEdit) {
+          elEdit.contentEditable = 'true';
+          elEdit.focus();
+          var sel = window.getSelection();
+          var range = document.createRange();
+          range.selectNodeContents(elEdit);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          var onBlur = function() {
+            elEdit.removeEventListener('blur', onBlur);
+            elEdit.removeEventListener('keydown', onKey);
+            elEdit.contentEditable = 'false';
+            sendTree();
+            parent.postMessage({ type: 'edit-done', id: data.id }, '*');
+          };
+          var onKey = function(ev) {
+            if (ev.key === 'Escape') {
+              ev.preventDefault();
+              elEdit.blur();
+            }
+          };
+          elEdit.addEventListener('blur', onBlur);
+          elEdit.addEventListener('keydown', onKey);
+        }
+        break;
+      }
       case 'request-tree': {
         sendTree();
         break;

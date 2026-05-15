@@ -65,6 +65,17 @@ export default function EditorPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [setTool])
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (useEditorStore.getState().isDirty()) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [])
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-canvas-bg">

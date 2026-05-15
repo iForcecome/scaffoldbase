@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditorStore, setBridgeSender } from '../stores/editor-store'
+import { useEditorStore, setBridgeSender, syncHTMLFromIframe } from '../stores/editor-store'
 
 function handleIframeWheel(data: Record<string, unknown>) {
   const store = useEditorStore.getState()
@@ -73,6 +73,7 @@ export function useBridge() {
         if (store.selectedIds.includes(data.id as string) && data.rect) {
           updateSelectedRect(data.id as string, data.rect as any)
         }
+        syncHTMLFromIframe()
         break
       }
       case 'element-replaced':
@@ -90,6 +91,11 @@ export function useBridge() {
       case 'iframe-wheel':
         handleIframeWheel(data)
         break
+      case 'edit-done': {
+        useEditorStore.getState().setEditingText(null)
+        syncHTMLFromIframe(100)
+        break
+      }
       case 'navigate-page': {
         const store = useEditorStore.getState()
         const targetId = data.pageId as string

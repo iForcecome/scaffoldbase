@@ -55,6 +55,8 @@ interface EditorState {
   undoStack: string[]
   redoStack: string[]
   saving: boolean
+  dirtyPageIds: string[]
+  editingTextId: string | null
 }
 
 interface EditorActions {
@@ -84,14 +86,10 @@ interface EditorActions {
   deletePage: (id: string) => void
   duplicatePage: (id: string) => void
   renamePage: (id: string, title: string) => void
-}
-
-let _saveTimer: ReturnType<typeof setTimeout> | null = null
-function debouncedSave(projectId: string, pageId: string, html: string, title?: string) {
-  if (_saveTimer) clearTimeout(_saveTimer)
-  _saveTimer = setTimeout(() => {
-    api.pages.update(projectId, pageId, { html, title }).catch(console.error)
-  }, 1500)
+  markDirty: (pageId?: string) => void
+  isDirty: () => boolean
+  save: () => Promise<void>
+  setEditingText: (id: string | null) => void
 }
 
 let _bridgeSender: ((msg: Record<string, unknown>) => void) | null = null
@@ -158,6 +156,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     undoStack: [],
     redoStack: [],
     saving: false,
+    dirtyPageIds: [],
+    editingTextId: null,
 
     loadProject: (projectId, name, pages) => set((s) => {
       s.projectId = projectId
@@ -166,10 +166,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         const defaultPage: Page = { id: 'page-' + Date.now(), title: '首页', html: DEFAULT_HTML }
         s.pages = [defaultPage]
         s.activePageId = defaultPage.id
-        api.pages.update(projectId, defaultPage.id, { html: defaultPage.html, title: defaultPage.title }).catch(console.error)
+        s.dirtyPageIds = [defaultPage.id]
       } else {
         s.pages = pages
         s.activePageId = pages[0].id
+        s.dirtyPageIds = []
       }
       s.domTree = []
       s.selectedIds = []
@@ -181,6 +182,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.undoStack = []
       s.redoStack = []
       s.activeTool = 'select'
+      s.editingTextId = null
     }),
 
     setActivePage: (id) => set((s) => {
@@ -279,8 +281,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       const page = s.pages.find(p => p.id === pageId)
       if (page) {
         page.html = html
-        if (s.projectId) {
-          debouncedSave(s.projectId, pageId, html, page.title)
+        if (!s.dirtyPageIds.includes(pageId)) {
+          s.dirtyPageIds.push(pageId)
         }
       }
     }),
@@ -299,6 +301,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (!page) return
       s.redoStack.push(page.html)
       page.html = s.undoStack.pop()!
+      if (!s.dirtyPageIds.includes(s.activePageId)) {
+        s.dirtyPageIds.push(s.activePageId)
+      }
     }),
 
     redo: () => set((s) => {
@@ -307,6 +312,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (!page) return
       s.undoStack.push(page.html)
       page.html = s.redoStack.pop()!
+      if (!s.dirtyPageIds.includes(s.activePageId)) {
+        s.dirtyPageIds.push(s.activePageId)
+      }
     }),
 
     getDeviceWidth: () => get().customWidth ?? DEVICE_WIDTHS[get().device],
@@ -324,8 +332,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.selectedIds = []
       s.selectedElements = {}
       s.selectedStyles = null
-      if (s.projectId) {
-        api.pages.update(s.projectId, id, { html, title: '新页面' }).catch(console.error)
+      if (!s.dirtyPageIds.includes(id)) {
+        s.dirtyPageIds.push(id)
       }
     }),
 
@@ -339,6 +347,12 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         s.selectedIds = []
         s.selectedElements = {}
         s.selectedStyles = null
+      }
+      const dirtyIdx = s.dirtyPageIds.indexOf(id)
+      if (dirtyIdx >= 0) s.dirtyPageIds.splice(dirtyIdx, 1)
+      // Mark remaining pages dirty so save will sync the full page list
+      if (!s.dirtyPageIds.includes(s.activePageId)) {
+        s.dirtyPageIds.push(s.activePageId)
       }
     }),
 
@@ -356,11 +370,72 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.selectedIds = []
       s.selectedElements = {}
       s.selectedStyles = null
+      if (!s.dirtyPageIds.includes(newId)) {
+        s.dirtyPageIds.push(newId)
+      }
     }),
 
     renamePage: (id, title) => set((s) => {
       const page = s.pages.find(p => p.id === id)
-      if (page) page.title = title
+      if (page) {
+        page.title = title
+        if (!s.dirtyPageIds.includes(id)) {
+          s.dirtyPageIds.push(id)
+        }
+      }
     }),
+
+    markDirty: (pageId) => set((s) => {
+      const id = pageId ?? s.activePageId
+      if (id && !s.dirtyPageIds.includes(id)) {
+        s.dirtyPageIds.push(id)
+      }
+    }),
+
+    isDirty: () => get().dirtyPageIds.length > 0,
+
+    save: async () => {
+      const state = get()
+      if (!state.projectId || state.dirtyPageIds.length === 0) return
+      set({ saving: true })
+      try {
+        for (const pageId of state.dirtyPageIds) {
+          const page = state.pages.find(p => p.id === pageId)
+          if (page) {
+            await api.pages.update(state.projectId, pageId, {
+              html: page.html,
+              title: page.title,
+            })
+          }
+        }
+        set((s) => { s.dirtyPageIds = [] })
+      } finally {
+        set({ saving: false })
+      }
+    },
+
+    setEditingText: (id) => set((s) => { s.editingTextId = id }),
   }))
 )
+
+let _syncTimer: ReturnType<typeof setTimeout> | null = null
+
+export function syncHTMLFromIframe(delay = 600) {
+  if (_syncTimer) clearTimeout(_syncTimer)
+  _syncTimer = setTimeout(async () => {
+    const state = useEditorStore.getState()
+    if (!state.projectId || !state.activePageId) return
+    try {
+      const resp = await requestFromBridge<{ html: string }>(
+        { type: 'get-page-html' },
+        'page-html',
+      )
+      const currentPage = state.pages.find(p => p.id === state.activePageId)
+      if (currentPage && currentPage.html !== resp.html) {
+        state.pushUndo()
+        suppressNextIframeReload()
+        state.updatePageHTML(state.activePageId, resp.html)
+      }
+    } catch { /* iframe not ready */ }
+  }, delay)
+}

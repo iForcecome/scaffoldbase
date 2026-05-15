@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import {
   MousePointer2, ZoomIn, Square, Type, Plus, Play,
-  Monitor, Smartphone, Undo2, Redo2, Download,
+  Monitor, Smartphone, Undo2, Redo2, Download, Save,
   FlaskConical, ArrowLeft,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -33,13 +34,34 @@ export function TopBar() {
   const redo = useEditorStore(s => s.redo)
   const undoStack = useEditorStore(s => s.undoStack)
   const redoStack = useEditorStore(s => s.redoStack)
+  const dirtyPageIds = useEditorStore(s => s.dirtyPageIds)
+  const saving = useEditorStore(s => s.saving)
+  const save = useEditorStore(s => s.save)
+
+  const hasDirty = dirtyPageIds.length > 0
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        if (hasDirty && !saving) save()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [hasDirty, saving, save])
 
   return (
     <header className="h-12 bg-white border-b border-surface-3 flex items-center px-4 gap-3 shrink-0 z-40">
       {/* Back + Logo */}
       <div className="flex items-center gap-2 pr-3 border-r border-surface-3">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            if (hasDirty) {
+              if (!window.confirm('有未保存的修改，确定要离开吗？')) return
+            }
+            navigate('/')
+          }}
           className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-surface-1 transition-colors text-ink-2 hover:text-ink-0 cursor-pointer"
           title="返回项目列表"
         >
@@ -125,8 +147,26 @@ export function TopBar() {
 
         <div className="w-px h-5 bg-surface-3" />
 
+        {/* Save */}
+        <button
+          className={`relative h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            hasDirty
+              ? 'bg-brand-600 text-white hover:bg-brand-700'
+              : 'bg-surface-1 text-ink-3 cursor-default'
+          }`}
+          onClick={() => { if (hasDirty && !saving) save() }}
+          disabled={!hasDirty || saving}
+          title="保存 (⌘S)"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {saving ? '保存中...' : '保存'}
+          {hasDirty && !saving && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-400 rounded-full" />
+          )}
+        </button>
+
         {/* Export */}
-        <button className="h-8 px-3.5 rounded-lg bg-brand-600 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-brand-700 transition-colors">
+        <button className="h-8 px-3.5 rounded-lg bg-surface-1 text-ink-2 text-xs font-semibold flex items-center gap-1.5 hover:bg-surface-2 transition-colors">
           <Download className="w-3.5 h-3.5" />
           导出
         </button>

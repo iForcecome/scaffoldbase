@@ -6,10 +6,12 @@
 - [2. 画布操作](#2-画布操作)
 - [3. 元素选择与多选](#3-元素选择与多选)
 - [4. 多页面管理](#4-多页面管理)
-- [5. AI 对话](#5-ai-对话)
-- [6. iframe 内容架构](#6-iframe-内容架构)
-- [7. 快捷键](#7-快捷键)
-- [8. 文件索引](#8-文件索引)
+- [5. 保存与数据持久化](#5-保存与数据持久化)
+- [6. 文本编辑](#6-文本编辑)
+- [7. AI 对话](#7-ai-对话)
+- [8. iframe 内容架构](#8-iframe-内容架构)
+- [9. 快捷键](#9-快捷键)
+- [10. 文件索引](#10-文件索引)
 
 ---
 
@@ -135,12 +137,12 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 
 ### 4.2 页面 CRUD
 
-| Action | 行为 | 约束 |
-|--------|------|------|
-| `addPage()` | 创建空白页，自动切换 | ID = `page-{timestamp}` |
-| `deletePage(id)` | 删除指定页面，切换到相邻页面 | 至少保留 1 个页面 |
-| `duplicatePage(id)` | 复制页面（标题 + "副本"），插入到原页面之后 | 自动切换到副本 |
-| `renamePage(id, title)` | 更新页面标题 | `title.trim()` 非空时生效 |
+| Action | 行为 | 约束 | 持久化 |
+|--------|------|------|--------|
+| `addPage()` | 创建空白页，自动切换 | ID = `page-{timestamp}` | 标记 dirty，需手动保存 |
+| `deletePage(id)` | 删除指定页面，切换到相邻页面 | 至少保留 1 个页面 | 标记 dirty，需手动保存 |
+| `duplicatePage(id)` | 复制页面（标题 + "副本"），插入到原页面之后 | 自动切换到副本 | 标记 dirty，需手动保存 |
+| `renamePage(id, title)` | 更新页面标题 | `title.trim()` 非空时生效 | 标记 dirty，需手动保存 |
 
 ### 4.3 页面间导航（预览模式）
 
@@ -154,9 +156,92 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 
 ---
 
-## 5. AI 对话
+## 5. 保存与数据持久化
 
-### 5.1 对话流程
+### 5.1 设计原则
+
+**本地编辑不自动保存。** 所有编辑操作（右面板样式修改、AI 生成、文本编辑、页面增删改名）仅更新内存中的状态，用户主动点击保存才写入数据库。退出页面时提示保存。
+
+这样用户可以安全试错（包括 AI 生成的坏结果），不满意时直接刷新恢复到上次保存的版本。
+
+### 5.2 Dirty 状态追踪
+
+| 状态 | 说明 |
+|------|------|
+| `dirtyPageIds: string[]` | 有未保存修改的页面 ID 列表 |
+| TopBar 保存按钮 | dirty 时高亮显示（品牌色 + 橙色圆点指示器） |
+| Clean 状态 | 保存按钮灰色/禁用 |
+
+**标记 dirty 的操作：** `updatePageHTML`、`undo`/`redo`、`addPage`、`deletePage`、`duplicatePage`、`renamePage`。
+
+### 5.3 保存流程
+
+| 触发方式 | 行为 |
+|----------|------|
+| 点击 TopBar「保存」按钮 | 遍历所有 dirty 页面，逐个 `PUT /api/projects/:id/pages/:pageId` 写入数据库，完成后清空 `dirtyPageIds` |
+| `Cmd+S` / `Ctrl+S` | 等同于点击保存按钮 |
+
+### 5.4 离开保护
+
+| 场景 | 行为 |
+|------|------|
+| 浏览器刷新/关闭 | `beforeunload` 事件弹出浏览器原生提示 |
+| 点击返回按钮（回项目列表） | `window.confirm` 弹出确认对话框 |
+
+### 5.5 HTML 回收管线 (syncHTMLFromIframe)
+
+右面板属性编辑通过 bridge `update-style` 修改 iframe DOM，但这些修改不会自动反映到 store 的 `pages[].html` 中。`syncHTMLFromIframe()` 解决这个问题：
+
+1. 任何 `update-style` 执行后，bridge 发送 `element-rect-update` 消息
+2. `use-bridge.ts` 收到该消息时调用 `syncHTMLFromIframe()`（debounced 600ms）
+3. `syncHTMLFromIframe` 向 iframe 请求 `get-page-html` 获取完整干净 HTML
+4. 对比当前 store 中的 HTML，如果不同：先 `pushUndo()`（创建撤销点），再 `updatePageHTML()`（标记 dirty）
+
+### 5.6 撤销 / 重做
+
+| 操作 | 快捷键 | 行为 |
+|------|--------|------|
+| 撤销 | `Cmd+Z` | 从 `undoStack` 弹出上一个 HTML 快照恢复，当前 HTML 压入 `redoStack` |
+| 重做 | `Cmd+Shift+Z` | 从 `redoStack` 弹出恢复，当前 HTML 压入 `undoStack` |
+
+**撤销点产生时机：** 每次 `syncHTMLFromIframe` 检测到 HTML 变化时自动创建。即每次右面板属性修改（blur 后）、AI 生成、文本编辑完成都是一个独立的撤销点。
+
+**与保存的关系：** 撤销/重做只在内存中操作，不影响数据库。Undo/Redo 后标记 dirty。保存不清除 undo 栈。
+
+---
+
+## 6. 文本编辑
+
+### 6.1 双击原位编辑
+
+支持在画布 iframe 中直接双击文本元素进行原位编辑。
+
+**可编辑的元素标签：** `h1`-`h6`、`p`、`span`、`a`、`button`、`label`、`li`、`td`、`th`、`figcaption`、`blockquote`、`caption`、`dt`、`dd`
+
+### 6.2 交互流程
+
+| 步骤 | 操作 | 系统行为 |
+|------|------|----------|
+| 1 | 双击画布上的文字元素 | overlay 检测目标标签是否在可编辑列表中 |
+| 2 | — | 发送 `start-edit` 消息给 iframe |
+| 3 | — | bridge 设置 `contentEditable=true`、focus、选中全部文本 |
+| 4 | — | 父页面设置 `editingTextId`，隐藏 overlay，iframe `pointer-events: auto` |
+| 5 | 用户直接打字编辑 | 浏览器原生 contentEditable 行为 |
+| 6 | 点击其他地方 / 按 Escape | 元素 blur → bridge 移除 contentEditable → 发送 `edit-done` |
+| 7 | — | 父页面恢复 overlay，调用 `syncHTMLFromIframe(100)` 回收 HTML + 产生撤销点 |
+
+### 6.3 Bridge 消息
+
+| 方向 | 消息类型 | 数据 | 时机 |
+|------|----------|------|------|
+| 父 → iframe | `start-edit` | `{ id }` | 双击触发 |
+| iframe → 父 | `edit-done` | `{ id }` | 编辑完成（blur / Escape） |
+
+---
+
+## 7. AI 对话
+
+### 7.1 对话流程
 
 **单元素修改：**
 
@@ -174,7 +259,7 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 4. `extractAllHTML` 提取多个 HTML 代码块
 5. 逐个 `replace-element-html` 应用到各元素
 
-### 5.2 对话历史
+### 7.2 对话历史
 
 | 行为 | 触发条件 |
 |------|----------|
@@ -184,9 +269,9 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 
 ---
 
-## 6. iframe 内容架构
+## 8. iframe 内容架构
 
-### 6.1 渲染方式
+### 8.1 渲染方式
 
 使用 `iframe.srcDoc` 注入 HTML 内容，配合 `sandbox="allow-scripts allow-same-origin"` 实现同源访问。`injectBridge` 函数在注入前会：
 
@@ -194,7 +279,7 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 2. 清理已有的 bridge script 块
 3. 注入最新版 bridge 脚本到 `</head>` 前
 
-### 6.2 尺寸控制
+### 8.2 尺寸控制
 
 | 属性 | 值 | 说明 |
 |------|-----|------|
@@ -204,7 +289,7 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 | 自动高度 | `body.scrollHeight` | iframe `onLoad` 后读取 |
 | 手动调整 | 底部拖拽手柄 | BrowserFrame 中 Pointer Events 实现 |
 
-### 6.3 Bridge 消息协议
+### 8.3 Bridge 消息协议
 
 **iframe → 父级：**
 
@@ -217,7 +302,8 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 | `computed-style` | 响应样式请求 | `{ id, styles, rect, label }` |
 | `element-html` | 响应 HTML 请求 | `{ id, html, tag, label }` |
 | `element-replaced` | HTML 替换完成 | `{ id, rect }` |
-| `element-rect-update` | 样式更新后 | `{ id, rect }` |
+| `element-rect-update` | 样式更新后（触发 syncHTMLFromIframe） | `{ id, rect }` |
+| `edit-done` | contentEditable 编辑结束 | `{ id }` |
 | `navigate-page` | 预览模式点击 `#page:` 链接 | `{ pageId }` |
 | `iframe-wheel` | Ctrl/Meta + 滚轮 | `{ deltaX, deltaY, ctrlKey, metaKey }` |
 | `page-html` | 响应整页 HTML 请求 | `{ html }` |
@@ -235,51 +321,56 @@ selectedElements: Record<string, {           // 每个选中元素的元数据
 | `get-element-html` | 请求元素 outerHTML |
 | `replace-element-html` | 替换元素 HTML |
 | `get-page-html` | 请求整页干净 HTML（去除 bridge 标记） |
+| `start-edit` | 开始原位文本编辑（设置 contentEditable） |
 
 ---
 
-## 7. 快捷键
+## 9. 快捷键
 
 | 快捷键 | 行为 | 限制 |
 |--------|------|------|
+| `Cmd+S` / `Ctrl+S` | 保存所有 dirty 页面到数据库 | 有未保存修改时生效 |
+| `Cmd+Z` / `Ctrl+Z` | 撤销 | undoStack 非空时 |
+| `Cmd+Shift+Z` / `Ctrl+Shift+Z` | 重做 | redoStack 非空时 |
 | `P` | 进入预览模式 | 输入框 / 文本域中不触发 |
-| `Esc` | 退出预览模式 | 仅在预览模式下 |
+| `Esc` | 退出预览模式 / 退出文本编辑 | 上下文相关 |
 | `V` | 选择工具 | TopBar 标注，待实现 |
 | `Z` | 缩放工具 | TopBar 标注，待实现 |
 | `M` | 框选工具 | TopBar 标注，待实现 |
 | `T` | 文本工具 | TopBar 标注，待实现 |
 | `I` | 插入工具 | TopBar 标注，待实现 |
+| 双击文本元素 | 进入原位文本编辑 | 仅设计模式下，限文本类标签 |
 
 ---
 
-## 8. 文件索引
+## 10. 文件索引
 
 所有路径相对于 `canvas-editor/src/`。
 
 | 文件 | 职责 |
 |------|------|
-| `stores/editor-store.ts` | 全局状态：Tool 类型（含 preview）、选中、视口、页面 CRUD、设备、undo/redo、bridge 消息 |
+| `stores/editor-store.ts` | 全局状态：Tool、选中、视口、页面 CRUD、设备、undo/redo、dirty 追踪、手动保存、syncHTMLFromIframe、bridge 消息 |
 | `stores/chat-store.ts` | 对话状态：消息列表、AI 流式调用、多元素 prompt 构建与应用 |
-| `bridge/bridge-script.ts` | iframe 注入脚本：事件拦截、DOM 树解析、20 种消息协议、design/preview 模式切换 |
-| `hooks/use-bridge.ts` | 父级消息路由：分发 bridge 消息到 store action、ready 时同步 mode、navigate-page 处理 |
-| `components/Canvas/ContentIFrame.tsx` | iframe 渲染：srcDoc 管理、overlay 覆盖层（设计模式）、elementFromPoint 元素选取 |
+| `bridge/bridge-script.ts` | iframe 注入脚本：事件拦截、DOM 树解析、消息协议（含 start-edit/contentEditable）、design/preview 模式 |
+| `hooks/use-bridge.ts` | 父级消息路由：分发 bridge 消息到 store、element-rect-update 触发 syncHTMLFromIframe、edit-done 处理 |
+| `components/Canvas/ContentIFrame.tsx` | iframe 渲染：srcDoc、overlay（设计模式）、elementFromPoint 选取、双击文本编辑、编辑中切换 pointer-events |
 | `components/Canvas/CanvasArea.tsx` | 画布容器：原生 wheel 事件（缩放/平移）、data-no-canvas-wheel 检测、条件渲染 UI |
 | `components/Canvas/SelectionOverlay.tsx` | 选中框：多选中框渲染、主选中虚线边框 + resize 手柄 |
 | `components/Canvas/HoverHighlight.tsx` | Hover 高亮：排除已选中元素 |
 | `components/Canvas/BrowserFrame.tsx` | 浏览器外壳：URL 栏模拟、底部拖拽调整 iframe 高度 |
 | `components/Canvas/ZoomControls.tsx` | 缩放控件：+/- 按钮、百分比显示 |
 | `components/Canvas/MiniMap.tsx` | 小地图：画布缩略视图 |
-| `components/TopBar/TopBar.tsx` | 顶部工具栏：6 种工具按钮（含 Play 预览）、设备切换、undo/redo、导出 |
+| `components/TopBar/TopBar.tsx` | 顶部工具栏：工具按钮、设备切换、undo/redo、保存按钮（Cmd+S + dirty 指示）、离开确认、导出 |
 | `components/LeftPanel/LeftPanel.tsx` | 左面板布局：PageList + 图层标题 + LayerTree + SpecStatus |
 | `components/LeftPanel/PageList.tsx` | 页面列表：折叠/展开、新增、重命名（双击/菜单）、复制、删除 |
 | `components/LeftPanel/LayerTree.tsx` | 图层树：DOM 可视化、点击选中（支持修饰键多选） |
 | `components/RightPanel/RightPanel.tsx` | 右面板：主选中元素属性、多选计数 |
 | `components/ChatBar/ChatInput.tsx` | 对话输入：元素 chips（水平滚动/truncate/移除）、自动 focus、历史切换 |
 | `components/ChatBar/ChatBar.tsx` | 对话栏容器：消息到达自动弹出历史、data-no-canvas-wheel |
+| `pages/EditorPage.tsx` | 编辑器页面：加载项目、快捷键监听、beforeunload 离开保护 |
 | `services/ai-service.ts` | AI 服务：单/多元素 prompt 构建、HTML 提取（extractHTML / extractAllHTML） |
+| `services/api.ts` | API 客户端：项目 CRUD、页面读写、聊天流、设计 Token |
 | `utils/inject-bridge.ts` | Bridge 注入：去重清理（data-sf-id + 旧 bridge script）→ 注入最新脚本 |
 | `data/mock-pages.ts` | Mock 数据：4 页面（首页/订单列表/订单详情/导出配置），含 `#page:` 导航链接 |
-| `App.tsx` | 应用根：预览模式面板显隐、P / Esc 快捷键监听 |
-| `main.tsx` | 入口：全局 wheel preventDefault 禁止浏览器缩放 |
-| `index.html` | 根 HTML：viewport meta `maximum-scale=1.0, user-scalable=no` |
-| `index.css` | 全局样式：`no-scrollbar` 工具类 |
+| `App.tsx` | 应用根：路由（ProjectList / EditorPage） |
+| `main.tsx` | 入口：BrowserRouter + 全局 wheel preventDefault 禁止浏览器缩放 |
