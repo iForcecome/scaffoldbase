@@ -337,6 +337,11 @@ export function getBridgeScript(): string {
         bridgeScripts.forEach(function(s) {
           if (s.textContent && s.textContent.indexOf('data-sf-id') >= 0) s.remove();
         });
+        clone.querySelectorAll('style').forEach(function(s) {
+          if (s.textContent && (s.textContent.indexOf('tailwindcss v') >= 0 || s.textContent.indexOf('--tw-border-spacing') >= 0)) {
+            s.remove();
+          }
+        });
         parent.postMessage({ type: 'page-html', html: '<!DOCTYPE html>\\n' + clone.outerHTML }, '*');
         break;
       }

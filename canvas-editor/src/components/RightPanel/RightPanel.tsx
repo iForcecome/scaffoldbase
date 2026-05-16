@@ -1,6 +1,7 @@
 import { useEditorStore } from '../../stores/editor-store'
 import { LayoutSection } from './LayoutSection'
 import { DisplaySection } from './DisplaySection'
+import { AppearanceSection } from './AppearanceSection'
 import { TypographySection } from './TypographySection'
 import { TokenSection } from './TokenSection'
 import { SpecBindingSection } from './SpecBindingSection'
@@ -39,6 +40,7 @@ export function RightPanel() {
         <>
           <LayoutSection />
           <DisplaySection />
+          <AppearanceSection />
           <TypographySection />
           <TokenSection />
           <SpecBindingSection elementId={primaryId} label={displayLabel} />

@@ -1,8 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
 import { useChatStore } from '../../stores/chat-store'
-import { getAIConfig } from '../../services/ai-service'
-import { SettingsPopover } from './SettingsPopover'
 
 interface ChatInputProps {
   historyVisible: boolean
@@ -12,9 +10,7 @@ interface ChatInputProps {
 
 export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }: ChatInputProps) {
   const [text, setText] = useState('')
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const settingsAnchorRef = useRef<HTMLSpanElement>(null)
 
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectedElements = useEditorStore(s => s.selectedElements)
@@ -29,9 +25,6 @@ export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }:
       textareaRef.current.focus()
     }
   }, [selectedIds])
-
-  const config = getAIConfig()
-  const modelName = config.model || 'deepseek-chat'
 
   const handleSend = useCallback(() => {
     const msg = text.trim()
@@ -169,15 +162,11 @@ export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }:
                 </svg>
               </span>
             )}
-            <span
-              ref={settingsAnchorRef}
-              className="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors"
-              onClick={() => setSettingsOpen(!settingsOpen)}
-            >
+            <span className="flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
               </svg>
-              {modelName}
+              deepseek-chat
             </span>
             <span className="text-ink-4">·</span>
             <span className="flex items-center gap-1 cursor-pointer hover:text-ink-1 transition-colors">
@@ -195,8 +184,6 @@ export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }:
             <kbd className="px-1.5 py-0.5 bg-surface-2 rounded text-[10px] font-mono">Esc</kbd>
             <span>取消选中</span>
           </div>
-
-          {settingsOpen && <SettingsPopover anchorRef={settingsAnchorRef} onClose={() => setSettingsOpen(false)} />}
         </div>
       </div>
     </div>

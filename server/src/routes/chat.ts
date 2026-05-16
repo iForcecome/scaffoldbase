@@ -2,7 +2,22 @@ import type { FastifyPluginAsync } from 'fastify'
 import { db } from '../db/client.js'
 import { specs, conversations } from '../db/schema.js'
 import { eq, desc } from 'drizzle-orm'
-import { streamChat, buildFullPageSystemPrompt, type ChatMessage } from '../services/ai.js'
+import {
+  streamChat,
+  buildDiffSystemPrompt,
+  buildFullPageUserPrompt,
+  buildFragmentSystemPrompt,
+  extractDiffs,
+  applyDiffs,
+  extractHTML,
+  type ChatMessage,
+} from '../services/ai.js'
+
+type Page = { id: string; title: string; html: string }
+
+function sendSSE(reply: { raw: { write: (data: string) => void } }, data: unknown) {
+  reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
+}
 
 export const chatRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:id/chat', {
@@ -42,19 +57,27 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       return { error: 'Project spec not found' }
     }
 
-    const pages = (spec.pages ?? []) as { id: string; title: string; html: string }[]
+    const pages = (spec.pages ?? []) as Page[]
     const page = body.pageId ? pages.find((p) => p.id === body.pageId) : pages[0]
     const pageHtml = page?.html ?? ''
+    const isFragmentMode = !!body.elementHtml
 
-    const apiMessages: ChatMessage[] = [
-      { role: 'system', content: buildFullPageSystemPrompt() },
-      {
-        role: 'user',
-        content: body.elementHtml
-          ? `当前选中元素的 HTML:\n\`\`\`html\n${body.elementHtml}\n\`\`\`\n\n完整页面 HTML:\n\`\`\`html\n${pageHtml}\n\`\`\`\n\n修改指令: ${body.message}`
-          : `当前页面 HTML:\n\`\`\`html\n${pageHtml}\n\`\`\`\n\n修改指令: ${body.message}`,
-      },
-    ]
+    let apiMessages: ChatMessage[]
+
+    if (isFragmentMode) {
+      apiMessages = [
+        { role: 'system', content: buildFragmentSystemPrompt() },
+        {
+          role: 'user',
+          content: `当前选中元素的 HTML:\n\`\`\`html\n${body.elementHtml}\n\`\`\`\n\n修改指令: ${body.message}`,
+        },
+      ]
+    } else {
+      apiMessages = [
+        { role: 'system', content: buildDiffSystemPrompt() },
+        { role: 'user', content: buildFullPageUserPrompt(pageHtml, body.message) },
+      ]
+    }
 
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -63,14 +86,37 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     })
 
     let fullContent = ''
+    const ac = new AbortController()
+    request.raw.on('close', () => ac.abort())
 
     try {
-      for await (const chunk of streamChat(apiMessages, request.raw.signal)) {
+      for await (const chunk of streamChat(apiMessages, ac.signal)) {
         fullContent += chunk
-        reply.raw.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`)
+        sendSSE(reply, { type: 'chunk', content: chunk })
       }
 
-      reply.raw.write(`data: ${JSON.stringify({ type: 'done', fullContent })}\n\n`)
+      let appliedHtml: string | null = null
+
+      if (isFragmentMode) {
+        appliedHtml = extractHTML(fullContent)
+        if (appliedHtml) {
+          sendSSE(reply, { type: 'applied', html: appliedHtml, mode: 'fragment' })
+        }
+      } else {
+        const diffs = extractDiffs(fullContent)
+        if (diffs.length > 0) {
+          appliedHtml = applyDiffs(pageHtml, diffs)
+        }
+        if (!appliedHtml) {
+          const extracted = extractHTML(fullContent)
+          if (extracted) appliedHtml = extracted
+        }
+        if (appliedHtml) {
+          sendSSE(reply, { type: 'applied', html: appliedHtml, mode: 'diff' })
+        }
+      }
+
+      sendSSE(reply, { type: 'done' })
 
       await db.insert(conversations).values({
         projectId: id,
@@ -82,7 +128,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
-      reply.raw.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`)
+      sendSSE(reply, { type: 'error', message })
     }
 
     reply.raw.end()

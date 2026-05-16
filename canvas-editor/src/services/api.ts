@@ -51,11 +51,12 @@ export const api = {
   },
 
   chat: {
-    stream: (projectId: string, body: { message: string; pageId?: string; elementHtml?: string }) =>
+    stream: (projectId: string, body: { message: string; pageId?: string; elementId?: string; elementHtml?: string }, signal?: AbortSignal) =>
       fetch(`${BASE}/projects/${projectId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal,
       }),
   },
 

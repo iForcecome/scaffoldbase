@@ -95,5 +95,6 @@ function formatAssistantContent(content: string): string {
   return content
     .replace(/```html[\s\S]*?```/g, '[HTML 代码已应用]')
     .replace(/```[\s\S]*?```/g, '[代码块]')
-    .trim()
+    .replace(/<<<SEARCH>>>[\s\S]*?<<<END>>>/g, '')
+    .trim() || '已应用修改。'
 }

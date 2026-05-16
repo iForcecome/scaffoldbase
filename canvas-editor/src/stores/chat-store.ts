@@ -1,15 +1,5 @@
 import { create } from 'zustand'
-import {
-  streamChat,
-  extractHTML,
-  extractAllHTML,
-  buildFragmentSystemPrompt,
-  buildFullPageSystemPrompt,
-  buildFragmentUserPrompt,
-  buildMultiFragmentUserPrompt,
-  buildFullPageUserPrompt,
-  type ChatMessage as APIChatMessage,
-} from '../services/ai-service'
+import { api } from '../services/api'
 import { useEditorStore, sendBridgeMessage, requestFromBridge, suppressNextIframeReload } from './editor-store'
 
 export interface ChatMessage {
@@ -39,6 +29,46 @@ function stripBridgeAttrs(html: string): string {
   return html.replace(/\s*data-sf-id="[^"]*"/g, '')
 }
 
+interface SSEEvent {
+  type: 'chunk' | 'applied' | 'done' | 'error'
+  content?: string
+  html?: string
+  mode?: 'diff' | 'fragment'
+  message?: string
+}
+
+async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('无法读取响应流')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      if (signal?.aborted) break
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed || !trimmed.startsWith('data: ')) continue
+        try {
+          yield JSON.parse(trimmed.slice(6)) as SSEEvent
+        } catch {
+          // skip malformed
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
   messages: [],
   isStreaming: false,
@@ -49,7 +79,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
   sendMessage: async (text: string) => {
     const editorStore = useEditorStore.getState()
     const page = editorStore.getActivePage()
-    if (!page) return
+    if (!page || !editorStore.projectId) return
 
     const selectedIds = editorStore.selectedIds
     const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
@@ -72,121 +102,72 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
     }))
 
     try {
-      let apiMessages: APIChatMessage[]
-      let fragmentIds: string[] = []
+      let elementHtml: string | undefined
+      let elementId: string | undefined
+      let fragmentId: string | undefined
 
-      if (selectedIds.length > 1) {
-        const elementData: { id: string; html: string; tag: string; label: string }[] = []
-        for (const id of selectedIds) {
-          try {
-            const resp = await requestFromBridge<{ html: string; tag: string; label: string }>(
-              { type: 'get-element-html', id },
-              'element-html',
-            )
-            elementData.push({
-              id,
-              html: stripBridgeAttrs(resp.html),
-              tag: resp.tag || 'div',
-              label: resp.label || '元素',
-            })
-          } catch {
-            // skip elements we can't fetch
-          }
-        }
-
-        if (elementData.length > 0) {
-          fragmentIds = elementData.map(e => e.id)
-          apiMessages = [
-            { role: 'system', content: buildFragmentSystemPrompt(elementData.length) },
-            { role: 'user', content: buildMultiFragmentUserPrompt(elementData, text) },
-          ]
-        } else {
-          apiMessages = [
-            { role: 'system', content: buildFullPageSystemPrompt() },
-            { role: 'user', content: buildFullPageUserPrompt(page.html, text) },
-          ]
-        }
-      } else if (selectedId) {
+      if (selectedId) {
         try {
           const resp = await requestFromBridge<{ html: string; tag: string; label: string }>(
             { type: 'get-element-html', id: selectedId },
             'element-html',
           )
-          const cleanHtml = stripBridgeAttrs(resp.html)
-          const elementInfo = { tag: resp.tag || 'div', label: resp.label || '元素' }
-
-          fragmentIds = [selectedId]
-          apiMessages = [
-            { role: 'system', content: buildFragmentSystemPrompt() },
-            { role: 'user', content: buildFragmentUserPrompt(cleanHtml, text, elementInfo) },
-          ]
+          elementHtml = stripBridgeAttrs(resp.html)
+          elementId = selectedId
+          fragmentId = selectedId
         } catch {
-          apiMessages = [
-            { role: 'system', content: buildFullPageSystemPrompt() },
-            { role: 'user', content: buildFullPageUserPrompt(page.html, text) },
-          ]
+          // fall through to full-page mode
         }
-      } else {
-        apiMessages = [
-          { role: 'system', content: buildFullPageSystemPrompt() },
-          { role: 'user', content: buildFullPageUserPrompt(page.html, text) },
-        ]
+      }
+
+      const response = await api.chat.stream(
+        editorStore.projectId,
+        { message: text, pageId: page.id, elementHtml, elementId },
+        abortController.signal,
+      )
+
+      if (!response.ok) {
+        const errBody = await response.text()
+        throw new Error(`API ${response.status}: ${errBody}`)
       }
 
       let fullContent = ''
-
-      for await (const chunk of streamChat(apiMessages, abortController.signal)) {
-        fullContent += chunk
-        set({ streamingContent: fullContent })
-      }
-
       let htmlApplied = false
 
-      if (fragmentIds.length > 1) {
-        const htmlBlocks = extractAllHTML(fullContent)
-        if (htmlBlocks.length > 0) {
-          editorStore.pushUndo()
-          for (let i = 0; i < fragmentIds.length; i++) {
-            const html = htmlBlocks[i] || htmlBlocks[htmlBlocks.length - 1]
-            if (html) {
-              sendBridgeMessage({ type: 'replace-element-html', id: fragmentIds[i], html })
+      for await (const event of parseSSE(response, abortController.signal)) {
+        switch (event.type) {
+          case 'chunk':
+            fullContent += event.content ?? ''
+            set({ streamingContent: fullContent })
+            break
+
+          case 'applied':
+            if (event.html) {
+              editorStore.pushUndo()
+              if (event.mode === 'fragment' && fragmentId) {
+                sendBridgeMessage({ type: 'replace-element-html', id: fragmentId, html: event.html })
+                try {
+                  const pageResp = await requestFromBridge<{ html: string }>(
+                    { type: 'get-page-html' },
+                    'page-html',
+                  )
+                  suppressNextIframeReload()
+                  editorStore.updatePageHTML(page.id, pageResp.html)
+                } catch {
+                  // visual update already applied via bridge
+                }
+              } else {
+                editorStore.updatePageHTML(page.id, event.html)
+              }
+              htmlApplied = true
             }
-          }
-          try {
-            const pageResp = await requestFromBridge<{ html: string }>(
-              { type: 'get-page-html' },
-              'page-html',
-            )
-            suppressNextIframeReload()
-            editorStore.updatePageHTML(page.id, pageResp.html)
-          } catch {
-            // visual updates already applied
-          }
-          htmlApplied = true
-        }
-      } else if (fragmentIds.length === 1) {
-        const html = extractHTML(fullContent)
-        if (html) {
-          editorStore.pushUndo()
-          sendBridgeMessage({ type: 'replace-element-html', id: fragmentIds[0], html })
-          try {
-            const pageResp = await requestFromBridge<{ html: string }>(
-              { type: 'get-page-html' },
-              'page-html',
-            )
-            suppressNextIframeReload()
-            editorStore.updatePageHTML(page.id, pageResp.html)
-          } catch {
-            // visual update already applied
-          }
-          htmlApplied = true
-        }
-      } else {
-        const html = extractHTML(fullContent)
-        if (html) {
-          editorStore.pushUndo()
-          editorStore.updatePageHTML(page.id, html)
-          htmlApplied = true
+            break
+
+          case 'error':
+            throw new Error(event.message || '服务端错误')
+
+          case 'done':
+            break
         }
       }
 
