@@ -14,6 +14,35 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
+function isSafeCssColor(value: unknown): value is string {
+  return typeof value === 'string' && (
+    /^#[0-9a-fA-F]{3,8}$/.test(value) ||
+    /^rgba?\([\d\s,%.]+\)$/.test(value)
+  )
+}
+
+function renderThemeCss(page: PageSchema['page']): string {
+  const theme = page.theme
+  if (!theme) return ''
+  const rules: string[] = []
+  if (isSafeCssColor(theme.brandColor)) rules.push(`--sf-color-brand-600: ${theme.brandColor};`)
+  if (isSafeCssColor(theme.brandColorStrong)) rules.push(`--sf-color-brand-700: ${theme.brandColorStrong};`)
+  if (isSafeCssColor(theme.backgroundColor)) rules.push(`--sf-color-surface-1: ${theme.backgroundColor};`)
+  if (isSafeCssColor(theme.surfaceColor)) rules.push(`--sf-color-surface-0: ${theme.surfaceColor};`)
+  if (isSafeCssColor(theme.surfaceColorRaised)) rules.push(`--sf-color-surface-2: ${theme.surfaceColorRaised};`)
+  if (isSafeCssColor(theme.borderColor)) rules.push(`--sf-color-surface-3: ${theme.borderColor};`)
+  if (isSafeCssColor(theme.textColor)) rules.push(`--sf-color-ink-0: ${theme.textColor};`)
+  if (isSafeCssColor(theme.textColorSecondary)) rules.push(`--sf-color-ink-1: ${theme.textColorSecondary};`)
+  if (isSafeCssColor(theme.mutedTextColor)) rules.push(`--sf-color-ink-2: ${theme.mutedTextColor};`)
+  if (typeof theme.fontFamily === 'string' && theme.fontFamily.length < 200) rules.push(`--sf-font-sans: ${theme.fontFamily};`)
+  if (rules.length === 0) return ''
+  return `<style data-sf-theme>
+:root {
+  ${rules.join('\n  ')}
+}
+</style>`
+}
+
 function renderPageShell(page: PageSchema['page'], body: string): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -67,6 +96,7 @@ function renderPageShell(page: PageSchema['page'], body: string): string {
 <style data-sf-design-system>
 ${renderDesignSystemCss()}
 </style>
+${renderThemeCss(page)}
 </head>
 <body>
   <main class="sf-page-shell sf-page-shell--${escapeHtml(page.layout)}" data-sf-page-id="${escapeHtml(page.id)}" data-sf-page-title="${escapeHtml(page.title)}">

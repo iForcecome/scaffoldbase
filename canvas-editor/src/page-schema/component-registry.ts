@@ -226,6 +226,15 @@ function renderNavigation(node: ComponentNode): string {
   </nav>`
 }
 
+function renderSection(node: ComponentNode): string {
+  const props = node.props ?? {}
+  return `<section ${renderAttrs(node)}>
+    ${props.title ? `<h2 data-sf-id="${escapeAttr(`${node.id}.title`)}" data-sf-role="title">${escapeHtml(props.title)}</h2>` : ''}
+    ${props.description ? `<p data-sf-id="${escapeAttr(`${node.id}.description`)}" data-sf-role="description">${escapeHtml(props.description)}</p>` : ''}
+    ${renderChildren(node.children)}
+  </section>`
+}
+
 function renderGeneric(node: ComponentNode): string {
   const tag = ['Section', 'Region'].includes(node.component) ? 'section' : 'div'
   return `<${tag} ${renderAttrs(node)}>
@@ -251,8 +260,10 @@ export function renderComponentNode(node: ComponentNode): string {
       return renderEmptyState(node)
     case 'Navigation':
       return renderNavigation(node)
+    case 'Section':
+    case 'Region':
+      return renderSection(node)
     default:
       return renderGeneric(node)
   }
 }
-

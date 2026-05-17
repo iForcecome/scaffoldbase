@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecFlow — 首页交互设计稿</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;600;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+        serif: ['Playfair Display', 'Noto Sans SC', 'serif'],
+      },
+      colors: {
+        bg:    { 0:'#100c08', 1:'#1a1410', 2:'#241c16', 3:'#2e251e', 4:'#3a3026' },
+        line:  { 1:'#2a221b', 2:'#3a3026', 3:'#4a3f33' },
+        warm:  { 0:'#fafaf9', 1:'#e7e1d8', 2:'#a8a097', 3:'#76706a', 4:'#52504c' },
+        flame: { 50:'#fff7ed', 100:'#ffedd5', 200:'#fed7aa', 300:'#fdba74', 400:'#fb923c', 500:'#f97316', 600:'#ea580c', 700:'#c2410c', 800:'#9a3412', 900:'#7c2d12' },
+        gold:  { 400:'#fbbf24', 500:'#f59e0b', 600:'#d97706' },
+      }
+    }
+  }
+}
+</script>
+<style>
+  html { scroll-behavior: smooth; background: #100c08; }
+  body { font-feature-settings: 'cv02','cv03','cv04','cv11'; background: #100c08; }
+  .font-display { font-family: 'Playfair Display', 'Noto Sans SC', serif; font-feature-settings: 'kern' 1, 'liga' 1; }
+  .gradient-flame { background: linear-gradient(135deg, #fbbf24 0%, #f97316 50%, #ea580c 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .glow-bg { background: radial-gradient(60% 50% at 50% 0%, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.05) 40%, transparent 75%); }
+  .grain { position: relative; }
+  .grain::before { content:''; position:absolute; inset:0; background-image: radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px); background-size: 3px 3px; pointer-events:none; }
+  .glow-input { box-shadow: 0 0 0 1px #3a3026, 0 30px 80px -20px rgba(249,115,22,0.25), 0 8px 24px -8px rgba(0,0,0,0.6); }
+  .glow-btn  { box-shadow: 0 6px 20px -4px rgba(249,115,22,0.6), inset 0 1px 0 rgba(255,255,255,0.18); }
+  .card-lift { transition: all 0.28s cubic-bezier(0.4,0,0.2,1); }
+  .card-lift:hover { transform: translateY(-3px); border-color:#4a3f33; box-shadow: 0 18px 40px -16px rgba(249,115,22,0.18); }
+  .chip-pill { display:inline-flex; align-items:center; gap:6px; padding:7px 16px; border-radius:9999px; font-size:13px; font-weight:600; color:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 14px -4px rgba(0,0,0,0.4); }
+  .fade-in { animation: fadeIn 0.7s cubic-bezier(0.4,0,0.2,1) forwards; opacity:0; transform: translateY(14px); }
+  @keyframes fadeIn { to { opacity:1; transform: translateY(0); } }
+  .d1{animation-delay:.05s} .d2{animation-delay:.12s} .d3{animation-delay:.2s} .d4{animation-delay:.3s} .d5{animation-delay:.4s}
+  .blink { animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .marquee { display:flex; gap:16px; animation: marquee 60s linear infinite; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  ::-webkit-scrollbar { width: 8px; height:8px; }
+  ::-webkit-scrollbar-track { background: #100c08; }
+  ::-webkit-scrollbar-thumb { background: #3a3026; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a3f33; }
+  .thumb-grid { display:grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr); gap:3px; padding:8px; }
+  .thumb-grid .t { border-radius:3px; }
+  .tab-pill[data-active="true"] { background: linear-gradient(135deg, #f97316, #ea580c); color:#fff; box-shadow: 0 4px 12px -3px rgba(249,115,22,0.5); }
+  .source-pill[data-active="true"] { background:#3a3026; color:#fdba74; border-color:#4a3f33; }
+  .file-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; background:#2e251e; border:1px solid #3a3026; border-radius:6px; font-size:11px; color:#e7e1d8; }
+  .file-chip svg { width:12px; height:12px; }
+</style>
+</head>
+<body class="bg-bg-0 text-warm-0 antialiased font-sans">
+
+<!-- ============== TOP NAV ============== -->
+<nav class="sticky top-0 z-40 bg-bg-0/85 backdrop-blur-xl border-b border-line-1">
+  <div class="max-w-[1280px] mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-flame-400 via-flame-500 to-flame-700 flex items-center justify-center shadow-lg shadow-flame-600/30">
+        <svg class="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0"/></svg>
+      </div>
+      <span class="font-display text-[22px] font-bold gradient-flame leading-none">SpecFlow</span>
+    </div>
+    <div class="hidden md:flex items-center gap-1 text-[14px]">
+      <a class="px-3 py-1.5 rounded-md text-warm-0 hover:text-flame-300 transition-colors font-medium">首页</a>
+      <a class="px-3 py-1.5 rounded-md text-warm-2 hover:text-warm-0 transition-colors relative">
+        新建项目
+        <span class="absolute -top-1.5 -right-1 px-1.5 py-0.5 text-[9px] font-bold bg-gradient-to-r from-flame-400 to-flame-600 text-white rounded-full">NEW</span>
+      </a>
+      <a class="px-3 py-1.5 rounded-md text-warm-2 hover:text-warm-0 transition-colors">物料库</a>
+      <a class="px-3 py-1.5 rounded-md text-warm-2 hover:text-warm-0 transition-colors relative">
+        模板市场
+        <span class="absolute -top-1.5 -right-1 px-1.5 py-0.5 text-[9px] font-bold bg-green-600 text-white rounded-full">50%</span>
+      </a>
+      <a class="px-3 py-1.5 rounded-md text-warm-2 hover:text-warm-0 transition-colors flex items-center gap-1">
+        定价
+        <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+      </a>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="hidden md:flex items-center gap-1.5 h-9 px-3 rounded-md text-[13px] text-warm-2 hover:text-warm-0 hover:bg-bg-2 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2c2.5 3 4 6.5 4 10s-1.5 7-4 10c-2.5-3-4-6.5-4-10s1.5-7 4-10z"/></svg>
+        简体中文
+      </button>
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-flame-400 to-flame-700 ring-2 ring-bg-0 text-white text-[12px] font-semibold flex items-center justify-center">KZ</div>
+    </div>
+  </div>
+</nav>
+
+<!-- ============== HERO: TOOL-AS-LANDING ============== -->
+<section class="relative overflow-hidden grain">
+  <div class="absolute inset-0 glow-bg pointer-events-none"></div>
+  <div class="absolute top-40 -left-32 w-[420px] h-[420px] bg-flame-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="absolute top-20 -right-32 w-[480px] h-[480px] bg-amber-700/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+  <div class="relative max-w-5xl mx-auto px-6 pt-20 pb-12">
+
+    <!-- Brand row -->
+    <div class="fade-in flex items-center justify-center gap-4 mb-5">
+      <div class="w-12 h-12 rounded-full bg-gradient-to-br from-flame-400 via-flame-500 to-flame-700 shadow-xl shadow-flame-600/40 flex items-center justify-center ring-4 ring-flame-500/10">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0"/></svg>
+      </div>
+      <h1 class="font-display text-5xl md:text-6xl font-bold gradient-flame tracking-tight leading-none">SpecFlow</h1>
+    </div>
+
+    <!-- Subtitle -->
+    <p class="fade-in d1 text-center text-warm-1 text-[18px] md:text-[20px] mb-3 font-medium">
+      在几分钟内产出<strong class="text-warm-0">可交付的产品方案</strong>
+    </p>
+    <div class="fade-in d2 text-center text-warm-3 text-[13px] mb-7 flex items-center justify-center gap-2">
+      <span class="text-flame-400">✦</span>
+      全球首个对话式 HTML 原型 + PRD + Spec 一体化工具
+      <span class="text-flame-400">✦</span>
+    </div>
+
+    <!-- Pill badges -->
+    <div class="fade-in d3 flex flex-wrap items-center justify-center gap-2.5 mb-12">
+      <span class="chip-pill bg-gradient-to-br from-flame-500 to-flame-700">100% 免费起步</span>
+      <span class="chip-pill bg-gradient-to-br from-emerald-500 to-emerald-700">由 Claude 4.6 驱动</span>
+      <span class="chip-pill bg-gradient-to-br from-sky-500 to-sky-700">无需登录</span>
+      <span class="chip-pill bg-gradient-to-br from-violet-500 to-violet-700">导出即可上线</span>
+    </div>
+
+    <!-- ============== Generator Card ============== -->
+    <div class="fade-in d4 bg-bg-1/90 rounded-2xl border border-line-2 glow-input overflow-hidden">
+
+      <!-- Header -->
+      <div class="px-6 pt-6 pb-3 flex items-end justify-between">
+        <div>
+          <h2 class="font-display text-[26px] font-bold text-warm-0 leading-none mb-1">产品方案生成器</h2>
+          <div class="text-[12px] text-warm-3">描述需求 · 上传物料 · 引用模板</div>
+        </div>
+        <div class="flex items-center gap-1.5 text-[12px] text-warm-3">
+          <span class="text-flame-400">🇬🇧</span>
+          中英文皆可，<span class="text-flame-300">英文提示词</span>效果更稳
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 pb-4">
+        <div class="flex gap-4">
+          <!-- Upload box -->
+          <button onclick="document.getElementById('fileInput').click()" class="shrink-0 w-[120px] h-[140px] rounded-xl border-2 border-dashed border-line-3 hover:border-flame-500 hover:bg-flame-500/5 transition-colors flex flex-col items-center justify-center text-warm-3 hover:text-flame-400 cursor-pointer group">
+            <div class="w-9 h-9 rounded-full bg-bg-3 group-hover:bg-flame-500/10 flex items-center justify-center mb-2 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            </div>
+            <div class="text-[11px] font-medium">添加物料</div>
+            <div class="text-[10px] text-warm-4 mt-0.5">图片/PDF/MD</div>
+            <input type="file" id="fileInput" multiple accept="image/*,.pdf,.md,.docx,.html,.zip" class="hidden" onchange="onUpload(event)">
+          </button>
+
+          <!-- Textarea -->
+          <textarea
+            id="prompt"
+            rows="6"
+            placeholder="描述您想做的产品...&#10;&#10;例如：做一个面向小团队的项目管理后台，包含任务看板、迭代计划、成员权限管理。要求 Production Ready 质量，支持深色模式"
+            class="flex-1 bg-transparent text-[16px] leading-relaxed text-warm-0 placeholder:text-warm-4 resize-none outline-none py-1"
+          ></textarea>
+        </div>
+
+        <!-- Material strip (shown when files attached) -->
+        <div id="materialStrip" class="mt-3 flex flex-wrap gap-2" hidden></div>
+
+        <!-- Inline option chips -->
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" class="w-3.5 h-3.5 rounded border-line-3 bg-bg-2 text-flame-500 focus:ring-flame-500/30" checked>
+            <span class="text-[12px] text-warm-1">桌面端</span>
+          </label>
+          <span class="text-warm-4">·</span>
+          <button class="opt text-[12px] text-warm-3 hover:text-flame-300 transition-colors" data-active="false">无特定主题</button>
+          <span class="text-warm-4">·</span>
+          <button class="opt text-[12px] text-warm-3 hover:text-flame-300 transition-colors" data-active="false">中文界面</button>
+          <span class="text-warm-4">·</span>
+          <button class="opt text-[12px] text-warm-3 hover:text-flame-300 transition-colors" data-active="false">B 端配色</button>
+          <span class="text-warm-4">·</span>
+          <button class="opt text-[12px] text-warm-3 hover:text-flame-300 transition-colors" data-active="false">无指定组件库</button>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="px-4 py-3 bg-bg-2/60 border-t border-line-1 flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <!-- Quality preset selector -->
+          <button class="h-9 px-3 rounded-lg bg-bg-3 border border-line-2 text-[13px] text-warm-1 hover:bg-bg-4 transition-colors flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-gradient-to-br from-flame-400 to-flame-600 flex items-center justify-center text-[9px] font-bold text-white">PR</span>
+            Production Ready
+            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+          </button>
+
+          <!-- Fast mode toggle -->
+          <button class="h-9 px-3 rounded-lg text-[13px] text-warm-1 hover:bg-bg-3 transition-colors flex items-center gap-2">
+            <span class="relative inline-flex items-center w-9 h-5 bg-flame-600 rounded-full">
+              <span class="absolute right-0.5 w-4 h-4 bg-white rounded-full shadow"></span>
+            </span>
+            <svg class="w-3.5 h-3.5 text-flame-400" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+            快速模式
+          </button>
+
+          <!-- Spec mode toggle -->
+          <button class="h-9 px-3 rounded-lg text-[13px] text-warm-3 hover:bg-bg-3 hover:text-warm-1 transition-colors flex items-center gap-2">
+            <span class="relative inline-flex items-center w-9 h-5 bg-bg-4 rounded-full">
+              <span class="absolute left-0.5 w-4 h-4 bg-warm-3 rounded-full"></span>
+            </span>
+            生成 PRD
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <button class="h-9 px-3 text-[13px] text-warm-3 hover:text-warm-0 transition-colors">清除</button>
+          <button class="h-9 px-3 text-[13px] text-warm-3 hover:text-warm-0 transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            随机
+          </button>
+          <button id="sendBtn" class="relative h-9 px-5 rounded-lg bg-gradient-to-br from-flame-500 to-flame-700 text-white text-[13px] font-semibold flex items-center gap-2 hover:from-flame-400 hover:to-flame-600 transition-all glow-btn disabled:opacity-40 disabled:cursor-not-allowed">
+            生成
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+            <span class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-bg-0 border border-flame-500 text-[10px] font-bold flex items-center justify-center text-flame-400">4</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick starters -->
+    <div class="fade-in d5 mt-6 flex flex-wrap items-center justify-center gap-2">
+      <span class="text-[12px] text-warm-3 mr-1">试试 →</span>
+      <button class="starter px-3 py-1.5 rounded-full bg-bg-2 border border-line-2 text-[12px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">电商后台管理系统</button>
+      <button class="starter px-3 py-1.5 rounded-full bg-bg-2 border border-line-2 text-[12px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">SaaS 数据控制台</button>
+      <button class="starter px-3 py-1.5 rounded-full bg-bg-2 border border-line-2 text-[12px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">内容社区 App</button>
+      <button class="starter px-3 py-1.5 rounded-full bg-bg-2 border border-line-2 text-[12px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">上传 PRD 反推</button>
+      <button class="starter px-3 py-1.5 rounded-full bg-bg-2 border border-line-2 text-[12px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">竞品截图复刻</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============== MY PROJECTS ============== -->
+<section class="relative pt-16 pb-20 border-t border-line-1 bg-bg-1/40">
+  <div class="max-w-[1280px] mx-auto px-6">
+
+    <div class="flex items-end justify-between mb-8 flex-wrap gap-4">
+      <div>
+        <h2 class="font-display text-3xl md:text-4xl font-bold text-warm-0 tracking-tight">我的项目</h2>
+        <p class="text-[13px] text-warm-3 mt-1">共 12 个项目 · 草稿自动保留 24 小时</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 h-9 px-3 bg-bg-2 border border-line-2 rounded-lg focus-within:border-flame-500">
+          <svg class="w-3.5 h-3.5 text-warm-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+          <input class="bg-transparent text-[13px] outline-none w-44 text-warm-0 placeholder:text-warm-3" placeholder="搜索项目名 / 描述...">
+        </div>
+        <button class="h-9 w-9 rounded-lg bg-bg-2 border border-line-2 text-warm-2 hover:text-warm-0 flex items-center justify-center" title="网格">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 15.75 13.5H18A2.25 2.25 0 0 1 20.25 15.75V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Status tabs -->
+    <div class="flex items-center gap-2 mb-6 flex-wrap">
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[12px] font-medium text-warm-1 bg-bg-2 border border-line-2" data-active="true">全部 · 12</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[12px] font-medium text-warm-2 bg-bg-2 border border-line-2 hover:border-line-3">草稿 · 3</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[12px] font-medium text-warm-2 bg-bg-2 border border-line-2 hover:border-line-3">就绪 · 6</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[12px] font-medium text-warm-2 bg-bg-2 border border-line-2 hover:border-line-3">已导出 · 2</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[12px] font-medium text-warm-2 bg-bg-2 border border-line-2 hover:border-line-3">已同步 · 1</button>
+      <div class="h-5 w-px bg-line-2 mx-1"></div>
+      <span class="text-[11px] text-warm-3">来源</span>
+      <button class="source-pill px-2.5 py-1 rounded-full border border-line-2 bg-bg-2 text-warm-2 text-[11px] hover:text-warm-0" data-active="true">全部</button>
+      <button class="source-pill px-2.5 py-1 rounded-full border border-line-2 bg-bg-2 text-warm-2 text-[11px] hover:text-warm-0">Chat 创建</button>
+      <button class="source-pill px-2.5 py-1 rounded-full border border-line-2 bg-bg-2 text-warm-2 text-[11px] hover:text-warm-0">物料上传</button>
+      <button class="source-pill px-2.5 py-1 rounded-full border border-line-2 bg-bg-2 text-warm-2 text-[11px] hover:text-warm-0">PRD 解析</button>
+      <button class="source-pill px-2.5 py-1 rounded-full border border-line-2 bg-bg-2 text-warm-2 text-[11px] hover:text-warm-0">模板</button>
+    </div>
+
+    <!-- Project grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+
+      <!-- Generating draft -->
+      <div class="card-lift group relative bg-bg-1 rounded-xl border border-flame-500/50 overflow-hidden">
+        <div class="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-flame-500 text-white text-[10px] font-bold">
+          <span class="w-1.5 h-1.5 rounded-full bg-white blink"></span>
+          生成中
+        </div>
+        <div class="h-32 bg-gradient-to-br from-flame-900/40 via-bg-2 to-amber-900/30">
+          <div class="thumb-grid h-full">
+            <div class="t bg-flame-500/30 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-3"></div>
+            <div class="t bg-flame-400/30 col-span-4 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-amber-500/30 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+          </div>
+          <div class="absolute inset-x-0 bottom-0 h-0.5 bg-bg-3"><div class="h-full bg-flame-500 w-2/3 animate-pulse"></div></div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[13px] font-semibold text-warm-0 truncate mb-1">订单管理后台 <span class="text-warm-3 font-normal">(草稿)</span></h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">AI 正在消化 2 张截图 + 1 份 PRD...</p>
+          <div class="flex items-center gap-1.5 text-[10px]">
+            <span class="px-1.5 py-0.5 rounded bg-flame-500/15 text-flame-300 font-medium">草稿</span>
+            <span class="px-1.5 py-0.5 rounded bg-bg-3 text-warm-2 font-medium">3 物料</span>
+            <span class="ml-auto text-warm-3">刚刚</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ready -->
+      <div class="card-lift group bg-bg-1 rounded-xl border border-line-2 overflow-hidden">
+        <div class="h-32 bg-gradient-to-br from-flame-900/30 via-bg-2 to-amber-900/30">
+          <div class="thumb-grid h-full">
+            <div class="t bg-flame-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-3"></div>
+            <div class="t bg-bg-3 col-span-4 row-span-1"></div>
+            <div class="t bg-amber-400/30 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-flame-400/30 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[13px] font-semibold text-warm-0 truncate mb-1">电商后台 v2</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">订单、商品、客户三大模块</p>
+          <div class="flex items-center gap-1.5 text-[10px]">
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium">就绪</span>
+            <span class="px-1.5 py-0.5 rounded bg-bg-3 text-warm-2 font-medium">Chat</span>
+            <span class="ml-auto text-warm-3">2h 前</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Material -->
+      <div class="card-lift group bg-bg-1 rounded-xl border border-line-2 overflow-hidden">
+        <div class="h-32 bg-gradient-to-br from-purple-900/40 via-bg-2 to-pink-900/30">
+          <div class="thumb-grid h-full">
+            <div class="t bg-pink-500/40 col-span-6 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-2"></div>
+            <div class="t bg-purple-400/30 col-span-3 row-span-2"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[13px] font-semibold text-warm-0 truncate mb-1">小红书风格社区</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">基于竞品截图 + 调研文档反推</p>
+          <div class="flex items-center gap-1.5 text-[10px]">
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium">就绪</span>
+            <span class="px-1.5 py-0.5 rounded bg-bg-3 text-warm-2 font-medium">物料</span>
+            <span class="ml-auto text-warm-3">昨天</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Exported -->
+      <div class="card-lift group bg-bg-1 rounded-xl border border-line-2 overflow-hidden">
+        <div class="h-32 bg-gradient-to-br from-teal-900/40 via-bg-2 to-cyan-900/30">
+          <div class="thumb-grid h-full">
+            <div class="t bg-teal-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-1 row-span-3"></div>
+            <div class="t bg-teal-400/30 col-span-3 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-cyan-400/30 col-span-3 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[13px] font-semibold text-warm-0 truncate mb-1">SaaS 数据看板</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">已生成 Next.js 项目骨架</p>
+          <div class="flex items-center gap-1.5 text-[10px]">
+            <span class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-medium">已导出</span>
+            <span class="px-1.5 py-0.5 rounded bg-bg-3 text-warm-2 font-medium">Chat</span>
+            <span class="ml-auto text-warm-3">3 天</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- New project card -->
+      <button class="card-lift group bg-gradient-to-br from-flame-900/15 via-bg-1 to-bg-1 rounded-xl border-2 border-dashed border-line-3 hover:border-flame-500 overflow-hidden flex flex-col items-center justify-center h-[200px] text-warm-3 hover:text-flame-300 transition-colors" onclick="window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('prompt').focus(),500)">
+        <div class="w-10 h-10 rounded-full bg-bg-2 border border-line-3 group-hover:border-flame-500 flex items-center justify-center mb-2 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        </div>
+        <div class="text-[13px] font-semibold text-warm-1 mb-0.5">新建项目</div>
+        <div class="text-[11px] text-warm-3">回到顶部，开始对话</div>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============== INSPIRATION GALLERY ============== -->
+<section class="relative pt-16 pb-20 border-t border-line-1">
+  <div class="max-w-[1280px] mx-auto px-6">
+    <div class="text-center mb-3">
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-warm-0 tracking-tight">获取灵感</h2>
+    </div>
+    <p class="text-center text-warm-3 text-[14px] mb-10">从 SpecFlow 社区的创作中获取灵感 · 一键复用为你的项目起点</p>
+
+    <!-- Filter tabs -->
+    <div class="flex items-center justify-center gap-2 mb-8 flex-wrap">
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors" data-active="true">全部</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">SaaS 后台</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">电商</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">内容社区</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">移动端</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">官网/Landing</button>
+      <button class="tab-pill px-4 py-1.5 rounded-full text-[13px] font-medium text-warm-1 bg-bg-2 border border-line-2 hover:border-flame-500/40 transition-colors">B 端工具</button>
+    </div>
+
+    <!-- Masonry gallery -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <!-- Card 1 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[260px] bg-gradient-to-br from-purple-900/30 via-bg-2 to-pink-900/20 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-purple-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-3"></div>
+            <div class="t bg-pink-500/30 col-span-4 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-purple-400/30 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+          </div>
+          <div class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-bg-0/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-1.5">
+              <button class="flex-1 h-7 rounded-md bg-flame-600 text-white text-[11px] font-semibold hover:bg-flame-500">复用为我的</button>
+              <button class="h-7 w-7 rounded-md bg-bg-2 border border-line-2 text-warm-2 hover:text-flame-300 flex items-center justify-center" title="预览">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">小红书风格社区</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">瀑布流 + 沉浸式详情 · 6 页面</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 1.2k</span>
+            <span class="px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-300 text-[10px] font-semibold">内容社区</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[200px] bg-gradient-to-br from-flame-900/40 via-bg-2 to-amber-900/30 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-flame-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-1 row-span-3"></div>
+            <div class="t bg-flame-400/30 col-span-3 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-amber-500/30 col-span-3 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-5 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">电商后台 v2</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">订单 / 商品 / 客户 · 12 页面</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 856</span>
+            <span class="px-1.5 py-0.5 rounded bg-flame-500/15 text-flame-300 text-[10px] font-semibold">电商</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3 (大图) -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[300px] bg-gradient-to-br from-sky-900/40 via-bg-2 to-cyan-900/30 relative overflow-hidden">
+          <div class="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-flame-500 text-white text-[10px] font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-white blink"></span> 精选
+          </div>
+          <div class="thumb-grid h-full">
+            <div class="t bg-sky-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-3"></div>
+            <div class="t bg-cyan-400/30 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-2"></div>
+            <div class="t bg-sky-400/30 col-span-4 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">SaaS 数据看板</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">实时仪表盘 + 多租户 · 8 页面</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 3.4k</span>
+            <span class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[10px] font-semibold">SaaS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[240px] bg-gradient-to-br from-emerald-900/40 via-bg-2 to-teal-900/30 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-emerald-500/40 col-span-4 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-teal-400/30 col-span-2 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-emerald-400/30 col-span-4 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">健身打卡 App</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">移动端原型 · 训练计划 + 数据统计</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 412</span>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-semibold">移动端</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[220px] bg-gradient-to-br from-violet-900/40 via-bg-2 to-fuchsia-900/30 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-violet-500/40 col-span-6 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-2"></div>
+            <div class="t bg-fuchsia-400/30 col-span-3 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-1"></div>
+            <div class="t bg-violet-400/30 col-span-3 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">CRM 客户管理</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">企业级 SaaS · 14 页面</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 627</span>
+            <span class="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 text-[10px] font-semibold">B 端</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 6 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[280px] bg-gradient-to-br from-amber-900/40 via-bg-2 to-orange-900/30 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-amber-500/40 col-span-4 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-2 row-span-3"></div>
+            <div class="t bg-orange-400/30 col-span-4 row-span-2"></div>
+            <div class="t bg-amber-400/30 col-span-3 row-span-1"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">教育 SaaS 平台</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">课程 / 班级 / 作业 · 由 PRD 反推</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 289</span>
+            <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[10px] font-semibold">SaaS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 7 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[210px] bg-gradient-to-br from-rose-900/40 via-bg-2 to-red-900/30 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-rose-500/40 col-span-6 row-span-2"></div>
+            <div class="t bg-bg-3 col-span-3 row-span-2"></div>
+            <div class="t bg-red-400/30 col-span-3 row-span-2"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">本地生活下单</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">餐饮外卖 H5 · 9 页面</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 158</span>
+            <span class="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 text-[10px] font-semibold">移动端</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 8 -->
+      <div class="card-lift group bg-bg-1 rounded-2xl border border-line-2 overflow-hidden cursor-pointer">
+        <div class="h-[260px] bg-gradient-to-br from-bg-3 via-bg-2 to-bg-1 relative overflow-hidden">
+          <div class="thumb-grid h-full">
+            <div class="t bg-warm-4/20 col-span-2 row-span-4"></div>
+            <div class="t bg-warm-3/10 col-span-4 row-span-1"></div>
+            <div class="t bg-warm-4/20 col-span-2 row-span-2"></div>
+            <div class="t bg-warm-4/15 col-span-2 row-span-2"></div>
+            <div class="t bg-warm-3/10 col-span-4 row-span-1"></div>
+          </div>
+        </div>
+        <div class="p-3.5">
+          <h3 class="text-[14px] font-semibold text-warm-0 truncate mb-1">极简 Landing Page</h3>
+          <p class="text-[11px] text-warm-3 line-clamp-1 mb-2">单页面官网模板 · 文档级排版</p>
+          <div class="flex items-center justify-between text-[11px] text-warm-3">
+            <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> 942</span>
+            <span class="px-1.5 py-0.5 rounded bg-warm-3/15 text-warm-1 text-[10px] font-semibold">Landing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-10 text-center">
+      <button class="h-10 px-6 rounded-lg bg-bg-2 border border-line-2 text-[13px] text-warm-1 hover:border-flame-500 hover:text-flame-300 transition-colors">浏览全部 2,341 个方案 →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============== HOW IT WORKS ============== -->
+<section class="relative pt-20 pb-20 border-t border-line-1">
+  <div class="absolute inset-0 glow-bg pointer-events-none opacity-50"></div>
+  <div class="relative max-w-5xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-flame-400 font-semibold mb-2">How it works</div>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-warm-0 tracking-tight">三步，从想法到可交付</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5 relative">
+      <div class="hidden md:block absolute top-10 left-[16%] right-[16%] h-px bg-gradient-to-r from-transparent via-flame-500/40 to-transparent"></div>
+
+      <div class="relative bg-bg-1 border border-line-2 rounded-2xl p-6 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-flame-400 to-flame-700 text-white font-display text-2xl font-bold flex items-center justify-center shadow-lg shadow-flame-600/30">1</div>
+        <div class="font-display text-xl font-bold text-warm-0 mb-2">描述 / 上传</div>
+        <p class="text-[13px] text-warm-2 leading-relaxed">输入一句话需求，或丢入图片 / PRD / HTML 物料，立即建立草稿项目。</p>
+        <div class="mt-4 inline-flex items-center gap-1 text-[11px] text-warm-3 px-2 py-0.5 rounded-full bg-bg-2 border border-line-2">≤ 2 秒</div>
+      </div>
+
+      <div class="relative bg-bg-1 border border-line-2 rounded-2xl p-6 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-400 to-flame-700 text-white font-display text-2xl font-bold flex items-center justify-center shadow-lg shadow-amber-600/30">2</div>
+        <div class="font-display text-xl font-bold text-warm-0 mb-2">AI 消化产出</div>
+        <p class="text-[13px] text-warm-2 leading-relaxed">多模态理解所有物料，生成可交互 HTML 原型与结构化 Spec。</p>
+        <div class="mt-4 inline-flex items-center gap-1 text-[11px] text-warm-3 px-2 py-0.5 rounded-full bg-bg-2 border border-line-2">首屏 ≤ 15 秒</div>
+      </div>
+
+      <div class="relative bg-bg-1 border border-line-2 rounded-2xl p-6 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-400 to-flame-700 text-white font-display text-2xl font-bold flex items-center justify-center shadow-lg shadow-rose-600/30">3</div>
+        <div class="font-display text-xl font-bold text-warm-0 mb-2">精修 → 导出</div>
+        <p class="text-[13px] text-warm-2 leading-relaxed">画布对话式微调，一键导出 PRD / 项目骨架 / spec.json。</p>
+        <div class="mt-4 inline-flex items-center gap-1 text-[11px] text-warm-3 px-2 py-0.5 rounded-full bg-bg-2 border border-line-2">含测试 / CI</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FAQ ============== -->
+<section class="relative pt-16 pb-20 border-t border-line-1 bg-bg-1/40">
+  <div class="max-w-3xl mx-auto px-6">
+    <div class="text-center mb-10">
+      <div class="text-[11px] uppercase tracking-[0.2em] text-flame-400 font-semibold mb-2">FAQ</div>
+      <h2 class="font-display text-4xl font-bold text-warm-0 tracking-tight">常见问题</h2>
+    </div>
+    <div class="space-y-3">
+      <details class="group bg-bg-1 border border-line-2 rounded-xl overflow-hidden" open>
+        <summary class="px-5 py-4 cursor-pointer flex items-center justify-between text-warm-0 font-semibold text-[14px]">
+          上传的物料是怎么用的？会泄露吗？
+          <svg class="w-4 h-4 text-warm-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </summary>
+        <div class="px-5 pb-4 text-[13px] text-warm-2 leading-relaxed">
+          物料只用于当次项目的 AI 上下文，存储在你的项目内的 Material Library 里。我们不会用你的数据训练任何模型；项目设为私有时仅你本人可访问。
+        </div>
+      </details>
+      <details class="group bg-bg-1 border border-line-2 rounded-xl overflow-hidden">
+        <summary class="px-5 py-4 cursor-pointer flex items-center justify-between text-warm-0 font-semibold text-[14px]">
+          生成的 HTML 能直接上线吗？
+          <svg class="w-4 h-4 text-warm-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </summary>
+        <div class="px-5 pb-4 text-[13px] text-warm-2 leading-relaxed">
+          可以。我们提供三档 Quality Preset：Quick MVP / Production Ready / Enterprise，导出的项目骨架内置测试、CI、安全配置（RLS、XSS、Rate Limiting）。
+        </div>
+      </details>
+      <details class="group bg-bg-1 border border-line-2 rounded-xl overflow-hidden">
+        <summary class="px-5 py-4 cursor-pointer flex items-center justify-between text-warm-0 font-semibold text-[14px]">
+          支持哪些后端 / 数据库？
+          <svg class="w-4 h-4 text-warm-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </summary>
+        <div class="px-5 pb-4 text-[13px] text-warm-2 leading-relaxed">
+          默认 Supabase（含 RLS 自动生成），可切换 Convex / Firebase / 自定义 BaaS。Spec 里的数据模型会自动产出迁移脚本与 Zod schema。
+        </div>
+      </details>
+      <details class="group bg-bg-1 border border-line-2 rounded-xl overflow-hidden">
+        <summary class="px-5 py-4 cursor-pointer flex items-center justify-between text-warm-0 font-semibold text-[14px]">
+          能跟 Cursor / Claude Code 配合吗？
+          <svg class="w-4 h-4 text-warm-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </summary>
+        <div class="px-5 pb-4 text-[13px] text-warm-2 leading-relaxed">
+          可以。SpecFlow 提供 MCP Server，导出项目时自动生成 <code class="px-1 bg-bg-3 rounded text-flame-300">.cursorrules</code> 与 <code class="px-1 bg-bg-3 rounded text-flame-300">spec.json</code>，Cursor 读到即遵守工程规范；Claude Code 可通过 MCP 实时校验代码是否符合 Spec。
+        </div>
+      </details>
+      <details class="group bg-bg-1 border border-line-2 rounded-xl overflow-hidden">
+        <summary class="px-5 py-4 cursor-pointer flex items-center justify-between text-warm-0 font-semibold text-[14px]">
+          免费版有什么限制？
+          <svg class="w-4 h-4 text-warm-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </summary>
+        <div class="px-5 pb-4 text-[13px] text-warm-2 leading-relaxed">
+          免费版每月 30 次生成、5 个项目、单文件物料 10MB。付费版无限生成、私有项目、团队协作与高级模型选项。
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============== BOTTOM CTA ============== -->
+<section class="relative py-20 border-t border-line-1 overflow-hidden">
+  <div class="absolute inset-0 glow-bg pointer-events-none"></div>
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-flame-600/15 rounded-full blur-[100px] pointer-events-none"></div>
+
+  <div class="relative max-w-3xl mx-auto px-6 text-center">
+    <h2 class="font-display text-4xl md:text-6xl font-bold gradient-flame tracking-tight leading-tight mb-5">
+      从一句话开始
+    </h2>
+    <p class="text-warm-2 text-[16px] mb-8">免费起步，无需信用卡，5 秒内进入编辑器。</p>
+    <button onclick="window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('prompt').focus(),500)" class="inline-flex items-center gap-2 h-12 px-8 rounded-xl bg-gradient-to-br from-flame-500 to-flame-700 text-white font-semibold text-[15px] hover:from-flame-400 hover:to-flame-600 transition-all glow-btn">
+      立即开始生成
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- ============== FOOTER ============== -->
+<footer class="border-t border-line-1 bg-bg-0">
+  <div class="max-w-[1280px] mx-auto px-6 py-10">
+    <div class="grid md:grid-cols-5 gap-8 mb-8">
+      <div class="md:col-span-2">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-flame-400 to-flame-700"></div>
+          <span class="font-display text-lg font-bold gradient-flame">SpecFlow</span>
+        </div>
+        <p class="text-[12px] text-warm-3 leading-relaxed max-w-xs">对话式 HTML 原型 + PRD + Spec 一体化工具，PM 与创业者的 AI 产品设计工作台。</p>
+      </div>
+      <div>
+        <div class="text-[12px] font-semibold text-warm-1 mb-3">产品</div>
+        <ul class="space-y-2 text-[12px] text-warm-3">
+          <li><a class="hover:text-flame-300 transition-colors">画布编辑器</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">物料库</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">模板市场</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">MCP 集成</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-[12px] font-semibold text-warm-1 mb-3">资源</div>
+        <ul class="space-y-2 text-[12px] text-warm-3">
+          <li><a class="hover:text-flame-300 transition-colors">文档</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">变更日志</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">PRD 模板</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">API 参考</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-[12px] font-semibold text-warm-1 mb-3">公司</div>
+        <ul class="space-y-2 text-[12px] text-warm-3">
+          <li><a class="hover:text-flame-300 transition-colors">关于</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">定价</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">联系我们</a></li>
+          <li><a class="hover:text-flame-300 transition-colors">隐私 / 条款</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="pt-6 border-t border-line-1 flex items-center justify-between text-[11px] text-warm-4">
+      <div>© 2026 SpecFlow · Made with care in 杭州</div>
+      <div class="flex items-center gap-4">
+        <a class="hover:text-flame-300">Twitter</a>
+        <a class="hover:text-flame-300">GitHub</a>
+        <a class="hover:text-flame-300">微信公众号</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Send button enable/disable
+  const prompt = document.getElementById('prompt');
+  const sendBtn = document.getElementById('sendBtn');
+  const updateSend = () => {
+    const hasContent = prompt.value.trim().length > 0 || document.getElementById('materialStrip').children.length > 0;
+    sendBtn.disabled = !hasContent;
+  };
+  prompt.addEventListener('input', updateSend);
+  updateSend();
+
+  // Starters
+  document.querySelectorAll('.starter').forEach(b => {
+    b.addEventListener('click', () => {
+      prompt.value = b.textContent.trim();
+      prompt.focus();
+      updateSend();
+    });
+  });
+
+  // Option chips toggle
+  document.querySelectorAll('.opt').forEach(b => {
+    b.addEventListener('click', () => {
+      const a = b.dataset.active === 'true';
+      b.dataset.active = a ? 'false' : 'true';
+      b.style.color = a ? '' : '#fdba74';
+    });
+  });
+
+  // File upload
+  function fileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (['png','jpg','jpeg','gif','webp'].includes(ext))
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="m2.25 15.75 5.16-5.16a2.25 2.25 0 0 1 3.18 0l5.16 5.16M3.75 19.5h16.5"/></svg>';
+    if (ext === 'pdf')
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5"/></svg>';
+    if (ext === 'html')
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M17.25 6.75 22.5 12l-5.25 5.25M6.75 6.75 1.5 12l5.25 5.25"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5"/></svg>';
+  }
+  function onUpload(e) {
+    const strip = document.getElementById('materialStrip');
+    Array.from(e.target.files).forEach(f => {
+      const chip = document.createElement('span');
+      chip.className = 'file-chip';
+      chip.innerHTML = fileIcon(f.name) + '<span>' + f.name + '</span><button class="text-warm-3 hover:text-flame-400 ml-1">×</button>';
+      chip.querySelector('button').onclick = () => { chip.remove(); strip.hidden = strip.children.length === 0; updateSend(); };
+      strip.appendChild(chip);
+    });
+    strip.hidden = strip.children.length === 0;
+    e.target.value = '';
+    updateSend();
+  }
+  window.onUpload = onUpload;
+
+  // Tabs
+  document.querySelectorAll('.tab-pill').forEach(t => {
+    t.addEventListener('click', () => {
+      const group = t.parentElement;
+      group.querySelectorAll('.tab-pill').forEach(x => x.dataset.active = 'false');
+      t.dataset.active = 'true';
+    });
+  });
+  document.querySelectorAll('.source-pill').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.source-pill').forEach(x => x.dataset.active = 'false');
+      t.dataset.active = 'true';
+    });
+  });
+</script>
+</body>
+</html>

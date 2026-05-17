@@ -15,7 +15,18 @@ export interface PageSchema {
     id: string
     title: string
     layout: PageLayout
+    theme?: {
+      brandColor?: string
+      brandColorStrong?: string
+      backgroundColor?: string
+      surfaceColor?: string
+      surfaceColorRaised?: string
+      borderColor?: string
+      textColor?: string
+      textColorSecondary?: string
+      mutedTextColor?: string
+      fontFamily?: string
+    }
     sections: ComponentNode[]
   }
 }
-

@@ -1,4 +1,5 @@
-import type { PageLayout, PageSchema } from './types'
+import type { ComponentNode, PageLayout, PageSchema } from './types'
+import { validateComponentNodeContract } from './component-validation'
 
 export interface PageSchemaValidationResult {
   ok: boolean
@@ -42,6 +43,8 @@ function validateNode(node: unknown, path: string, errors: string[]) {
   }
   if (!isRecord(node.props) || Array.isArray(node.props)) {
     errors.push(`${path}.props must be an object`)
+  } else {
+    validateComponentNodeContract(node as unknown as ComponentNode, path, errors)
   }
 
   if (node.children !== undefined) {
@@ -88,4 +91,3 @@ export function assertPageSchema(input: unknown): asserts input is PageSchema {
     throw new Error(`Invalid page schema: ${result.errors.join('; ')}`)
   }
 }
-

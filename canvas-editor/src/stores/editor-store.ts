@@ -3,6 +3,10 @@ import { immer } from 'zustand/middleware/immer'
 import { api } from '../services/api'
 import { clonePageSchema, createDefaultPageSchema, renderPageSchemaToHtml, type PageSchema } from '../page-schema/render'
 import { buildSemanticIndex, type SemanticIndexEntry } from '../utils/semantic-index'
+import { buildPageSchemaFromDomTree } from '../page-schema/from-dom-tree'
+import { validatePageSchema } from '../page-schema/validate'
+import { applySchemaOperations as applySchemaOperationList } from '../schema-operations/apply-schema-operation'
+import type { SchemaOperation } from '../schema-operations/types'
 
 export interface DOMNode {
   id: string
@@ -24,6 +28,16 @@ export interface Page {
   title: string
   html: string
   schema?: PageSchema | null
+  source?: 'schema' | 'legacy-html'
+  renderMode?: 'source-html' | 'schema'
+  origin?: unknown
+}
+
+interface PageSnapshot {
+  html: string
+  schema?: PageSchema | null
+  source?: Page['source']
+  renderMode?: Page['renderMode']
 }
 
 export type Device = 'desktop' | 'tablet' | 'mobile'
@@ -67,8 +81,8 @@ interface EditorState {
   leftPanelOpen: boolean
   rightPanelOpen: boolean
   iframeHeight: number
-  undoStack: string[]
-  redoStack: string[]
+  undoStack: PageSnapshot[]
+  redoStack: PageSnapshot[]
   saving: boolean
   dirtyPageIds: string[]
   editingTextId: string | null
@@ -90,6 +104,7 @@ interface EditorActions {
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
   updatePageHTML: (pageId: string, html: string) => void
+  applySchemaOperations: (pageId: string, operations: SchemaOperation[]) => void
   pushUndo: () => void
   undo: () => void
   redo: () => void
@@ -101,6 +116,7 @@ interface EditorActions {
   deletePage: (id: string) => void
   duplicatePage: (id: string) => void
   renamePage: (id: string, title: string) => void
+  upgradePageToSchema: (id: string) => boolean
   markDirty: (pageId?: string) => void
   isDirty: () => boolean
   save: () => Promise<void>
@@ -163,7 +179,89 @@ function createGeneratedPage(id: string, title: string): Page {
     title,
     html: renderPageSchemaToHtml(schema),
     schema,
+    source: 'schema',
   }
+}
+
+function normalizeLoadedPages(pages: Page[]): Page[] {
+  const usedIds = new Set<string>()
+  return pages.map((page, index) => {
+    const normalizedPage = {
+      ...page,
+      schema: page.schema ? normalizePageSchemaIds(page.schema, index) : null,
+      source: page.source ?? 'legacy-html',
+    }
+    let id = normalizeId(normalizedPage.id, `page-${index + 1}`)
+    let suffix = 2
+    while (usedIds.has(id)) {
+      id = `${normalizeId(normalizedPage.id, `page-${index + 1}`)}-${suffix}`
+      suffix += 1
+    }
+    usedIds.add(id)
+    if (id !== normalizedPage.id) {
+      normalizedPage.id = id
+      if (normalizedPage.schema) normalizedPage.schema.page.id = id
+    }
+    if (normalizedPage.source === 'schema' && normalizedPage.schema && normalizedPage.renderMode !== 'source-html') {
+      normalizedPage.html = renderPageSchemaToHtml(normalizedPage.schema)
+    }
+    return normalizedPage
+  })
+}
+
+function hashString(value: string): string {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(i) | 0
+  }
+  return Math.abs(hash).toString(36).slice(0, 6)
+}
+
+function normalizeId(value: unknown, fallback: string): string {
+  const raw = String(value ?? '')
+  if (/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(raw)) return raw
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[^a-z0-9]+/i, '')
+    .replace(/[^a-z0-9]+$/i, '')
+    .slice(0, 48)
+  return `${cleaned || fallback}-${hashString(raw || fallback)}`
+}
+
+function normalizeComponentNodeIds(nodes: PageSchema['page']['sections'], pageId: string): PageSchema['page']['sections'] {
+  return nodes.map((node, index) => {
+    const id = normalizeId(node.id, `${pageId}.node.${index + 1}`)
+    return {
+      ...node,
+      id,
+      children: node.children ? normalizeComponentNodeIds(node.children, id) : undefined,
+    }
+  })
+}
+
+function normalizePageSchemaIds(schema: PageSchema, index: number): PageSchema {
+  const next = JSON.parse(JSON.stringify(schema)) as PageSchema
+  const pageId = normalizeId(next.page.id, `page-${index + 1}`)
+  next.page.id = pageId
+  next.page.sections = normalizeComponentNodeIds(next.page.sections, pageId)
+  return next
+}
+
+function createPageSnapshot(page: Page): PageSnapshot {
+  return {
+    html: page.html,
+    schema: page.schema ? JSON.parse(JSON.stringify(page.schema)) as PageSchema : page.schema ?? null,
+    source: page.source,
+    renderMode: page.renderMode,
+  }
+}
+
+function restorePageSnapshot(page: Page, snapshot: PageSnapshot) {
+  page.html = snapshot.html
+  page.schema = snapshot.schema ? JSON.parse(JSON.stringify(snapshot.schema)) as PageSchema : snapshot.schema ?? null
+  page.source = snapshot.source ?? page.source
+  page.renderMode = snapshot.renderMode ?? page.renderMode
 }
 
 export const useEditorStore = create<EditorState & EditorActions>()(
@@ -201,8 +299,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         s.activePageId = defaultPage.id
         s.dirtyPageIds = [defaultPage.id]
       } else {
-        s.pages = pages
-        s.activePageId = pages[0].id
+        s.pages = normalizeLoadedPages(pages)
+        s.activePageId = s.pages[0]?.id ?? ''
         s.dirtyPageIds = []
       }
       s.domTree = []
@@ -325,10 +423,30 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     }),
 
+    applySchemaOperations: (pageId, operations) => set((s) => {
+      const page = s.pages.find(p => p.id === pageId)
+      if (!page || page.source !== 'schema' || !page.schema || operations.length === 0) return
+
+      s.undoStack.push(createPageSnapshot(page))
+      s.redoStack = []
+
+      const nextSchema = applySchemaOperationList(page.schema, operations)
+      const validation = validatePageSchema(nextSchema)
+      if (!validation.ok) {
+        throw new Error(`Invalid page schema after operation: ${validation.errors.join('; ')}`)
+      }
+      page.schema = nextSchema
+      page.renderMode = 'schema'
+      page.html = renderPageSchemaToHtml(nextSchema)
+      if (!s.dirtyPageIds.includes(pageId)) {
+        s.dirtyPageIds.push(pageId)
+      }
+    }),
+
     pushUndo: () => set((s) => {
       const page = s.pages.find(p => p.id === s.activePageId)
       if (page) {
-        s.undoStack.push(page.html)
+        s.undoStack.push(createPageSnapshot(page))
         s.redoStack = []
       }
     }),
@@ -337,8 +455,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (s.undoStack.length === 0) return
       const page = s.pages.find(p => p.id === s.activePageId)
       if (!page) return
-      s.redoStack.push(page.html)
-      page.html = s.undoStack.pop()!
+      s.redoStack.push(createPageSnapshot(page))
+      restorePageSnapshot(page, s.undoStack.pop()!)
       if (!s.dirtyPageIds.includes(s.activePageId)) {
         s.dirtyPageIds.push(s.activePageId)
       }
@@ -348,8 +466,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (s.redoStack.length === 0) return
       const page = s.pages.find(p => p.id === s.activePageId)
       if (!page) return
-      s.undoStack.push(page.html)
-      page.html = s.redoStack.pop()!
+      s.undoStack.push(createPageSnapshot(page))
+      restorePageSnapshot(page, s.redoStack.pop()!)
       if (!s.dirtyPageIds.includes(s.activePageId)) {
         s.dirtyPageIds.push(s.activePageId)
       }
@@ -402,11 +520,14 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         id: newId,
         title: source.title + ' 副本',
       }) : null
+      const sourceType = schema ? 'schema' : (source.source ?? 'legacy-html')
       s.pages.splice(idx + 1, 0, {
         id: newId,
         title: source.title + ' 副本',
-        html: source.html,
+        html: source.renderMode === 'source-html' ? source.html : (schema ? renderPageSchemaToHtml(schema) : source.html),
         schema,
+        source: sourceType,
+        renderMode: source.renderMode,
       })
       s.activePageId = newId
       s.selectedIds = []
@@ -427,6 +548,31 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     }),
 
+    upgradePageToSchema: (id) => {
+      let upgraded = false
+      set((s) => {
+        const page = s.pages.find(p => p.id === id)
+        if (!page || page.source === 'schema') return
+
+        const schema = page.schema ?? (id === s.activePageId
+          ? buildPageSchemaFromDomTree(id, page.title, s.domTree)
+          : null)
+        if (!schema) return
+
+        s.undoStack.push(createPageSnapshot(page))
+        s.redoStack = []
+        page.schema = schema
+        page.source = 'schema'
+        page.renderMode = 'schema'
+        page.html = renderPageSchemaToHtml(schema)
+        if (!s.dirtyPageIds.includes(id)) {
+          s.dirtyPageIds.push(id)
+        }
+        upgraded = true
+      })
+      return upgraded
+    },
+
     markDirty: (pageId) => set((s) => {
       const id = pageId ?? s.activePageId
       if (id && !s.dirtyPageIds.includes(id)) {
@@ -444,10 +590,27 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         for (const pageId of state.dirtyPageIds) {
           const page = state.pages.find(p => p.id === pageId)
           if (page) {
+            const source = page.source ?? 'legacy-html'
+            const derivedSchema = page.schema || (pageId === state.activePageId
+              ? buildPageSchemaFromDomTree(pageId, page.title, state.domTree)
+              : null)
+            const schema = source === 'schema' ? page.schema : derivedSchema
+            const html = source === 'schema' && page.schema && page.renderMode !== 'source-html'
+              ? renderPageSchemaToHtml(page.schema)
+              : page.html
+
+            if (schema && !page.schema) {
+              page.schema = schema
+            }
+            if (html !== page.html) {
+              page.html = html
+            }
             await api.pages.update(state.projectId, pageId, {
-              html: page.html,
+              html,
               title: page.title,
-              schema: page.schema ?? undefined,
+              schema: page.schema ?? schema ?? undefined,
+              source,
+              renderMode: page.renderMode,
             })
           }
         }

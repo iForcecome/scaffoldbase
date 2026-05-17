@@ -2,8 +2,11 @@ import type { PageSchema } from '../page-schema/types'
 
 const BASE = '/api'
 
-async function download(projectId: string, type: 'spec_json' | 'html_prd', filename: string): Promise<void> {
-  const res = await fetch(`${BASE}/projects/${projectId}/exports/${type}`, {
+async function download(projectId: string, type: 'spec_json' | 'html_prd', filename: string, scope: 'page' | 'project' = 'project', pageId?: string | null): Promise<void> {
+  const requestUrl = new URL(`${window.location.origin}${BASE}/projects/${projectId}/exports/${type}`)
+  requestUrl.searchParams.set('scope', scope)
+  if (pageId) requestUrl.searchParams.set('pageId', pageId)
+  const res = await fetch(requestUrl.toString(), {
     method: 'GET',
     credentials: 'include',
   })
@@ -12,12 +15,12 @@ async function download(projectId: string, type: 'spec_json' | 'html_prd', filen
     throw new Error(`API ${res.status}: ${body}`)
   }
   const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url
+  a.href = objectUrl
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  URL.revokeObjectURL(objectUrl)
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -48,14 +51,29 @@ export interface Page {
   title: string
   html: string
   schema?: PageSchema | null
+  source?: 'schema' | 'legacy-html'
+  renderMode?: 'source-html' | 'schema'
+  origin?: unknown
+}
+
+export interface IngestionMaterialInput {
+  filename: string
+  mimeType?: string
+  content: string
+  intendedUse?: 'page' | 'reference' | 'requirements' | 'asset' | 'auto'
 }
 
 export const api = {
   projects: {
     list: () => request<Project[]>('/projects'),
     get: (id: string) => request<Project & { spec: unknown }>(`/projects/${id}`),
-    create: (data: { name: string; description?: string }) =>
+    create: (data: { name: string; description?: string; ingestionMaterials?: IngestionMaterialInput[] }) =>
       request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+    deriveMeta: (prompt: string) =>
+      request<{ name: string; description: string }>('/projects/derive-meta', {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
+      }),
     update: (id: string, data: Partial<Project>) =>
       request<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
@@ -64,9 +82,24 @@ export const api = {
 
   pages: {
     list: (projectId: string) => request<Page[]>(`/projects/${projectId}/pages`),
-    update: (projectId: string, pageId: string, data: { title?: string; html: string; schema?: PageSchema | null }) =>
+    update: (projectId: string, pageId: string, data: { title?: string; html: string; schema?: PageSchema | null; source?: 'schema' | 'legacy-html'; renderMode?: 'source-html' | 'schema' }) =>
       request<Page[]>(`/projects/${projectId}/pages/${pageId}`, {
         method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+  },
+
+  ingestion: {
+    run: (projectId: string, data: { prompt?: string; appendPages?: boolean; materials: IngestionMaterialInput[] }) =>
+      request<{
+        pages: Page[]
+        rawMaterials: unknown[]
+        normalizedMaterials: unknown[]
+        ingestionJobs: unknown[]
+        ingestionPlan: unknown
+        conversionReport: unknown
+      }>(`/projects/${projectId}/ingest`, {
+        method: 'POST',
         body: JSON.stringify(data),
       }),
   },
@@ -75,6 +108,8 @@ export const api = {
     stream: (projectId: string, body: {
       message: string
       pageId?: string
+      pageSource?: 'schema' | 'legacy-html'
+      pageSchema?: PageSchema | null
       elementId?: string
       elementHtml?: string
       selectedNode?: unknown
@@ -92,9 +127,9 @@ export const api = {
   },
 
   exports: {
-    downloadSpecJson: (projectId: string, projectName = 'specflow') =>
-      download(projectId, 'spec_json', `${projectName}-spec.json`),
-    downloadHtmlPrd: (projectId: string, projectName = 'specflow') =>
-      download(projectId, 'html_prd', `${projectName}-html-prd.html`),
+    downloadSpecJson: (projectId: string, projectName = 'specflow', scope: 'page' | 'project' = 'project', pageId?: string | null) =>
+      download(projectId, 'spec_json', `${projectName}-spec.json`, scope, pageId),
+    downloadHtmlPrd: (projectId: string, projectName = 'specflow', scope: 'page' | 'project' = 'project', pageId?: string | null) =>
+      download(projectId, 'html_prd', `${projectName}-html-prd.html`, scope, pageId),
   },
 }

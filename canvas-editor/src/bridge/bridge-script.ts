@@ -72,6 +72,49 @@ export function getBridgeScript(): string {
     return { component: null, role: null, label: null };
   }
 
+  function isGenericLabel(label) {
+    return !label || label === '容器' || label === '空容器' || label === 'Section' || label === 'Aside' || label === 'Region';
+  }
+
+  function applySemanticAttrs(el) {
+    var inferred = inferSemantic(el);
+    var component = el.getAttribute('data-sf-component') || inferred.component;
+    var role = el.getAttribute('data-sf-role') || inferred.role;
+    var label = el.getAttribute('data-sf-label') || inferred.label || inferLabel(el);
+
+    if (component) {
+      el.setAttribute('data-sf-component', component);
+      if (!el.getAttribute('data-sf-variant')) el.setAttribute('data-sf-variant', 'default');
+      var baseClass = 'sf-' + toKebab(component);
+      var variantClass = baseClass + '--' + toKebab(el.getAttribute('data-sf-variant') || 'default');
+      if (!el.classList.contains(baseClass)) el.classList.add(baseClass);
+      if (!el.classList.contains(variantClass)) el.classList.add(variantClass);
+    }
+
+    if (role && !el.getAttribute('data-sf-role')) {
+      el.setAttribute('data-sf-role', role);
+    }
+
+    if (label && !isGenericLabel(label) && !el.getAttribute('data-sf-label')) {
+      el.setAttribute('data-sf-label', label);
+    }
+  }
+
+  function upgradeSemanticAttributes(root) {
+    var stack = [root];
+    while (stack.length) {
+      var current = stack.pop();
+      if (!current || current.nodeType !== 1) continue;
+      var el = current;
+      if (el.getAttribute && el.getAttribute(BRIDGE_ATTR)) {
+        applySemanticAttrs(el);
+      }
+      for (var i = 0; i < el.children.length; i++) {
+        stack.push(el.children[i]);
+      }
+    }
+  }
+
   function getSemanticMeta(el) {
     var inferred = inferSemantic(el);
     return {
@@ -279,6 +322,7 @@ export function getBridgeScript(): string {
     var body = document.body;
     if (!body) return;
     assignIds(body);
+    upgradeSemanticAttributes(body);
     var tree = parseDOMTree(body, 0);
     if (tree) {
       var pruned = pruneTree(tree.children, 1);
@@ -487,6 +531,7 @@ export function getBridgeScript(): string {
           if (newEl) {
             elR.parentNode.replaceChild(newEl, elR);
             assignIds(newEl);
+            upgradeSemanticAttributes(newEl);
             sendTree();
             var newRect = newEl.getBoundingClientRect();
             var newId = newEl.getAttribute(BRIDGE_ATTR);
@@ -565,6 +610,7 @@ export function getBridgeScript(): string {
 
   function init() {
     if (document.body) assignIds(document.body);
+    if (document.body) upgradeSemanticAttributes(document.body);
     parent.postMessage({ type: 'ready' }, '*');
   }
 

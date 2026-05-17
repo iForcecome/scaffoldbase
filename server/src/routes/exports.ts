@@ -15,9 +15,19 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
           type: { type: 'string', enum: ['spec_json', 'html_prd'] },
         },
       },
+      querystring: {
+        type: 'object',
+        properties: {
+          scope: { type: 'string', enum: ['page', 'project'] },
+          pageId: { type: 'string' },
+        },
+      },
     },
   }, async (request, reply) => {
     const { id, type } = request.params as { id: string; type: ExportType }
+    const query = request.query as { scope?: 'page' | 'project'; pageId?: string }
+    const scope = query.scope ?? 'project'
+    const pageId = query.pageId ?? null
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -47,12 +57,13 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     })
 
     if (type === 'spec_json') {
+      reply.header('content-disposition', `attachment; filename="${project.name}-spec.json"`)
       reply.type('application/json; charset=utf-8')
-      return buildSpecJsonExport(project, spec, tokens, generatedAt)
+      return buildSpecJsonExport(project, spec, tokens, generatedAt, scope, pageId)
     }
 
+    reply.header('content-disposition', `attachment; filename="${project.name}-html-prd.html"`)
     reply.type('text/html; charset=utf-8')
-    return buildHtmlPrdExport(project, spec, tokens, generatedAt)
+    return buildHtmlPrdExport(project, spec, tokens, generatedAt, scope, pageId)
   })
 }
-

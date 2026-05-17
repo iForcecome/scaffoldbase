@@ -56,7 +56,7 @@ export function ChatHistory({ onClose }: { onClose: () => void }) {
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                       </svg>
-                      已应用到画布
+                      已应用到画布{msg.appliedMode ? ` · ${formatAppliedMode(msg.appliedMode)}` : ''}
                     </div>
                   )}
                 </div>
@@ -89,6 +89,19 @@ export function ChatHistory({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   )
+}
+
+function formatAppliedMode(mode: 'schema' | 'dom' | 'fragment' | 'diff'): string {
+  switch (mode) {
+    case 'schema':
+      return 'Schema'
+    case 'dom':
+      return 'DOM'
+    case 'fragment':
+      return 'HTML 片段'
+    case 'diff':
+      return 'HTML Diff'
+  }
 }
 
 function formatAssistantContent(content: string): string {

@@ -5,9 +5,21 @@ export interface ChatMessage {
   content: string
 }
 
+export async function completeChat(
+  messages: ChatMessage[],
+  options: { temperature?: number; signal?: AbortSignal } = {},
+): Promise<string> {
+  let full = ''
+  for await (const chunk of streamChat(messages, options.signal, options.temperature)) {
+    full += chunk
+  }
+  return full
+}
+
 export async function* streamChat(
   messages: ChatMessage[],
   signal?: AbortSignal,
+  temperature: number = 0.3,
 ): AsyncGenerator<string> {
   const apiKey = env.AI_API_KEY
   if (!apiKey) throw new Error('AI_API_KEY not configured')
@@ -22,7 +34,7 @@ export async function* streamChat(
       model: env.AI_MODEL,
       messages,
       stream: true,
-      temperature: 0.3,
+      temperature,
     }),
     signal,
   })
@@ -69,6 +81,10 @@ export interface DiffBlock {
 }
 
 export interface OperationResponse {
+  operations: unknown[]
+}
+
+export interface SchemaOperationResponse {
   operations: unknown[]
 }
 
@@ -206,6 +222,64 @@ ${input.elementHtml}
 \`\`\`
 
 修改指令: ${input.message}`
+}
+
+export function buildSchemaOperationSystemPrompt(): string {
+  return `你是 SpecFlow schema-first 画布编辑器的 AI 助手。用户会给你 Page Schema、当前选中节点语义信息和修改指令。
+
+你必须只返回 JSON，不要返回 Markdown，不要解释，不要返回 HTML。
+
+返回格式：
+{
+  "operations": [
+    {
+      "type": "replaceText" | "setVariant" | "updateProps" | "insertComponent" | "removeNode" | "moveNode",
+      ...
+    }
+  ]
+}
+
+可用操作：
+- replaceText: { "type": "replaceText", "target": string, "text": string }
+- setVariant: { "type": "setVariant", "target": string, "variant": string }
+- updateProps: { "type": "updateProps", "target": string, "props": Record<string,unknown> }
+- insertComponent: { "type": "insertComponent", "target": string, "position": "before" | "after" | "inside:start" | "inside:end", "node": ComponentNode }
+- removeNode: { "type": "removeNode", "target": string }
+- moveNode: { "type": "moveNode", "target": string, "reference": string, "position": "before" | "after" | "inside:start" | "inside:end" }
+
+规则：
+- target 优先使用 selectedNode.id；如果用户选中的是标题、描述等子节点，可以使用 page header 的 "nodeId.title" 或 "nodeId.description"。
+- 改文字优先用 replaceText。
+- 改组件视觉密度或强调程度优先用 setVariant。
+- 改组件结构化内容用 updateProps，不要返回 HTML 字符串。
+- 已知组件包括 PageHeader, FilterBar, DataTable, Button, FormSection, Modal, EmptyState, Navigation, Section, Region。
+- Button variant 只能用 default, primary, compact。
+- PageHeader/FilterBar/DataTable 可用 default, compact, spacious。
+- FormSection/Modal/EmptyState 可用 default, compact。
+- 不要生成 script、onclick、javascript: URL、style 字符串或 Tailwind class。
+- 每次最多返回 5 个操作，越精确越好。`
+}
+
+export function buildSchemaOperationUserPrompt(input: {
+  message: string
+  pageSchema: unknown
+  selectedNode: unknown
+}): string {
+  return `当前 Page Schema:
+\`\`\`json
+${JSON.stringify(input.pageSchema, null, 2)}
+\`\`\`
+
+当前选中节点:
+${JSON.stringify(input.selectedNode, null, 2)}
+
+修改指令: ${input.message}`
+}
+
+export function extractSchemaOperationResponse(text: string): SchemaOperationResponse | null {
+  const operationResponse = extractOperationResponse(text)
+  if (operationResponse) return operationResponse
+  return null
 }
 
 export function extractOperationResponse(text: string): OperationResponse | null {

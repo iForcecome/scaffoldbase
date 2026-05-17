@@ -5,6 +5,7 @@ import { LeftPanel } from '../components/LeftPanel/LeftPanel'
 import { CanvasArea } from '../components/Canvas/CanvasArea'
 import { RightPanel } from '../components/RightPanel/RightPanel'
 import { useEditorStore } from '../stores/editor-store'
+import { useChatStore } from '../stores/chat-store'
 import { api } from '../services/api'
 
 export default function EditorPage() {
@@ -47,6 +48,15 @@ export default function EditorPage() {
     init()
     return () => { cancelled = true }
   }, [projectId, navigate, loadProject])
+
+  useEffect(() => {
+    if (loading || !projectId) return
+    const key = `sf:pendingPrompt:${projectId}`
+    const pending = sessionStorage.getItem(key)
+    if (!pending) return
+    sessionStorage.removeItem(key)
+    useChatStore.getState().sendMessage(pending)
+  }, [loading, projectId])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

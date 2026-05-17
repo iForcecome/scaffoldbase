@@ -159,4 +159,26 @@ export const componentRecipes: Record<string, ComponentRecipe> = {
       },
     },
   },
+  Section: {
+    className: 'sf-section',
+    base: {
+      display: 'grid',
+      gap: 'var(--sf-space-3)',
+      padding: 'var(--sf-space-5)',
+      border: '1px solid var(--sf-color-surface-3)',
+      borderRadius: 'var(--sf-radius-lg)',
+      background: 'var(--sf-color-surface-0)',
+    },
+    variants: {
+      default: {},
+      compact: {
+        gap: 'var(--sf-space-2)',
+        padding: 'var(--sf-space-4)',
+      },
+      spacious: {
+        gap: 'var(--sf-space-4)',
+        padding: 'var(--sf-space-6)',
+      },
+    },
+  },
 }

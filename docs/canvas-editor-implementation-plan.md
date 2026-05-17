@@ -1,684 +1,325 @@
-# SpecFlow Canvas Editor Implementation Plan
+# SpecFlow Canvas Editor Refactor Plan
 
-This document defines the practical target architecture for SpecFlow's canvas editor and AI edit flow. The goal is to serve solo founders, freelancers, independent developers, and outsourcing clients who need to turn product ideas into editable prototypes and executable product specs.
+This document is the Phase 2 plan for the canvas editor. The first implementation pass proved the core pieces: iframe preview, semantic DOM metadata, operation JSON, design-system CSS, Page Schema rendering, legacy HTML migration, and exports. The next step is to make Page Schema the primary source of truth for the canvas.
 
-## 1. Product Positioning
+## 1. Target
 
-SpecFlow should not compete with Figma as a professional vector design tool. The canvas should be an HTML-first product workbench:
-
-- Generate product pages from natural language.
-- Render real HTML/CSS in the canvas.
-- Let users select regions and request natural-language edits.
-- Convert AI output into validated edit operations.
-- Preserve semantic meaning for each important DOM node.
-- Keep prototype, design tokens, and product spec synchronized.
-- Export HTML PRD, `spec.json`, and eventually a runnable project base.
-
-The core promise is:
-
-> AI does not directly own the final HTML. AI returns structured intent. SpecFlow validates, renders, executes, and persists it.
-
-## 2. Final Architecture
-
-Use four layers:
-
-1. Page Schema
-   - Used for new page generation.
-   - AI returns structured sections/components/props.
-   - SpecFlow renders this into HTML.
-
-2. Semantic DOM
-   - Every meaningful region has stable `data-sf-*` attributes.
-   - Runtime IDs such as `sf-0` are only temporary fallback IDs.
-   - Saved HTML should use stable semantic IDs like `orders.list.filters`.
-
-3. AI Operation Protocol
-   - Used for editing existing pages.
-   - AI returns JSON operations such as `replaceText`, `setVariant`, `updateStyle`, and `insertComponent`.
-   - Operations are schema-validated before execution.
-
-4. CSS Design System
-   - Editor UI can continue using Tailwind.
-   - User canvas pages should use `sf-*` component classes plus CSS variables.
-   - AI can choose tokens, variants, and safe style patches, but should not freely write arbitrary CSS/Tailwind.
-
-## 3. Data Flow
-
-### 3.1 New Page Generation
+The canvas should become:
 
 ```txt
-User prompt
--> AI returns Page Schema JSON
--> Validate with schema
--> Render HTML from component registry
--> Inject tokens and component CSS
--> Render in iframe
--> Save HTML + page spec
+Page Schema source
+-> renderer
+-> semantic HTML
+-> iframe preview
+-> bridge selection and measurements
+-> schema operations
+-> render again
 ```
 
-Example AI output:
+HTML remains important, but its role changes:
 
-```json
-{
-  "page": {
-    "id": "orders.list",
-    "title": "订单列表",
-    "layout": "dashboard",
-    "sections": [
-      {
-        "id": "orders.list.header",
-        "component": "PageHeader",
-        "variant": "default",
-        "props": {
-          "title": "订单管理",
-          "description": "查看、筛选和导出订单数据",
-          "actions": [
-            { "component": "Button", "variant": "primary", "label": "导出" }
-          ]
-        }
-      },
-      {
-        "id": "orders.list.filters",
-        "component": "FilterBar",
-        "variant": "default",
-        "props": {
-          "fields": [
-            { "type": "select", "name": "status", "label": "订单状态" },
-            { "type": "dateRange", "name": "createdAt", "label": "下单时间" }
-          ]
-        }
-      },
-      {
-        "id": "orders.list.table",
-        "component": "DataTable",
-        "variant": "default",
-        "props": {
-          "columns": ["订单号", "客户", "金额", "状态", "下单时间"]
-        }
-      }
-    ]
+- It is the iframe render target.
+- It is the export target.
+- It is a legacy compatibility format.
+- It should not be the main editable source for new pages.
+
+The product position stays the same: SpecFlow is not a Figma clone. It is a schema-backed product workbench for solo founders, freelancers, independent developers, and outsourcing clients.
+
+## 2. Current State
+
+Already implemented:
+
+- iframe-based canvas preview
+- semantic `data-sf-*` bridge metadata
+- legacy HTML runtime semantic upgrade
+- AI operation JSON for selected-element edits
+- `replaceText`, `setVariant`, `updateStyle`, `replaceClass`
+- design-system tokens, component recipes, and generated `sf-*` CSS
+- Page Schema types, validator, renderer, and default page generation
+- derived page schema from DOM tree on save for legacy pages
+- semantic index from DOM tree
+- `spec.json` and HTML PRD export endpoints
+
+Still transitional:
+
+- `Page.html` and `Page.schema` both exist, but `html` is still often the active source.
+- AI edit flow still applies operations in the iframe and then recovers HTML.
+- legacy imported pages are only partially schema-like.
+- `spec.json` is currently an export aggregation, not a full AI-generated product spec.
+
+## 3. New Rule
+
+For Phase 2:
+
+> New pages and schema-backed pages are edited through schema first. HTML is regenerated from schema.
+
+Legacy pages may continue through iframe DOM edits until migrated, but every change should try to produce or improve `page.schema`.
+
+## 4. Page Data Model
+
+Use this practical page model:
+
+```ts
+interface Page {
+  id: string
+  title: string
+  schema: PageSchema | null
+  html: string
+  source: 'schema' | 'legacy-html'
+  updatedAt?: string
+}
+```
+
+Implementation note:
+
+- The database can keep using `specs.pages` JSONB for now.
+- Add `source` without a DB migration because `pages` is JSONB.
+- Existing pages without `source` should be treated as `legacy-html`.
+- New pages should use `source: 'schema'`.
+
+## 5. Page Schema
+
+The schema must be stable before building a richer product spec.
+
+Minimum stable shape:
+
+```ts
+interface PageSchema {
+  page: {
+    id: string
+    title: string
+    layout: 'dashboard' | 'marketing' | 'form-flow' | 'detail' | 'settings'
+    sections: ComponentNode[]
   }
 }
-```
 
-### 3.2 Existing Page Edit
-
-```txt
-User selects an element or region
--> Frontend resolves semantic node
--> Send task + semantic context + allowed operations + design rules to AI
--> AI returns Operation JSON
--> Validate operations
--> Execute operations through iframe bridge
--> Recover clean HTML
--> Mark dirty and update spec metadata
-```
-
-Example AI output:
-
-```json
-{
-  "operations": [
-    {
-      "type": "setVariant",
-      "target": "orders.list.filters",
-      "variant": "compact"
-    },
-    {
-      "type": "replaceText",
-      "target": "orders.list.header.title",
-      "text": "订单中心"
-    }
-  ]
+interface ComponentNode {
+  id: string
+  component: string
+  role?: string
+  label?: string
+  variant?: string
+  props: Record<string, unknown>
+  children?: ComponentNode[]
 }
 ```
 
-## 4. Semantic DOM
+Next schema work:
 
-### 4.1 Required Attributes
+- add component-specific prop validators
+- add supported variants from the component registry
+- add `actions` for safe runtime interactions
+- add `bindings` for future spec/data/API binding
 
-Every generated meaningful node should include:
+Do not build a full product spec editor yet.
 
-```html
-<section
-  data-sf-id="orders.list.filters"
-  data-sf-component="FilterBar"
-  data-sf-role="filters"
-  data-sf-label="订单筛选区"
-  data-sf-variant="default"
-  data-sf-spec="pages.orders.sections.filters"
-  class="sf-filter-bar sf-filter-bar--default"
->
-</section>
-```
+## 6. Render Flow
 
-Attribute responsibilities:
-
-- `data-sf-id`: stable semantic target used by AI operations.
-- `data-sf-component`: component type from the registry.
-- `data-sf-role`: product/UI role, such as `header`, `filters`, `table`, `form`, `modal`.
-- `data-sf-label`: human-readable label shown in layer tree and right panel.
-- `data-sf-variant`: current visual/behavior variant.
-- `data-sf-spec`: optional path into structured product spec.
-- `class`: visual class generated by component recipes.
-- `style`: only for small user overrides or temporary canvas patches.
-
-### 4.2 ID Naming
-
-Prefer:
+For `source: 'schema'` pages:
 
 ```txt
-{domain}.{page}.{componentOrSection}.{element}
+schema
+-> validate
+-> renderPageSchemaToHtml(schema)
+-> injectBridge(html)
+-> iframe.srcDoc
 ```
 
-Examples:
+On save:
 
 ```txt
-orders.list.header
-orders.list.header.title
-orders.list.filters
-orders.list.filters.statusSelect
-orders.list.table
-orders.list.table.column.customerName
-orders.detail.summary.totalAmount
-settings.billing.planCard.upgradeButton
+schema-backed page:
+  save schema + generated html
+
+legacy page:
+  recover html from iframe
+  derive best-effort schema from domTree
+  save html + derived schema
 ```
 
-Fallback IDs for unknown content:
+This keeps old pages usable while new pages move toward schema-first.
+
+## 7. Edit Flow
+
+There should be two operation layers.
+
+### 7.1 Schema Operations
+
+Used for schema-backed pages.
+
+Start with:
+
+```ts
+type SchemaOperation =
+  | { type: 'replaceText'; target: string; text: string }
+  | { type: 'setVariant'; target: string; variant: string }
+  | { type: 'updateProps'; target: string; props: Record<string, unknown> }
+  | { type: 'insertComponent'; parent: string; position: 'before' | 'after' | 'inside:start' | 'inside:end'; node: ComponentNode }
+  | { type: 'removeNode'; target: string }
+  | { type: 'moveNode'; target: string; parent: string; position: string }
+```
+
+Execution:
 
 ```txt
-page.home.region.1
-page.home.cardGrid.1
-page.home.section.3
+AI/user command
+-> SchemaOperation JSON
+-> validate
+-> apply to PageSchema
+-> render HTML
+-> update iframe
+-> mark dirty
 ```
 
-### 4.3 Semantic Resolution Priority
+### 7.2 DOM Operations
 
-When resolving a node:
+Used only for legacy pages and measurement-only interactions.
 
-```txt
-explicit data-sf attrs
-> user override
-> AI semantic inference
-> rule-based inference
-> fallback Region
-```
-
-Rule inference examples:
-
-- `table`, `thead`, `tbody` -> `DataTable`
-- `input/select` plus buttons such as search/reset/filter -> `FilterBar`
-- `h1/h2` plus action buttons -> `PageHeader`
-- `form`, `label`, `input` -> `FormSection`
-- `nav` plus links -> `Navigation`
-- modal/dialog/drawer class names -> `Modal` or `Drawer`
-
-Low-confidence semantic nodes should be marked as unconfirmed and editable in the right panel.
-
-## 5. AI Operation Protocol
-
-Start with a small protocol and expand only after it is stable.
-
-### 5.1 Phase 1 Operations
+Current supported operations remain:
 
 - `replaceText`
 - `setVariant`
 - `updateStyle`
 - `replaceClass`
 
-### 5.2 Phase 2 Operations
+This layer should shrink over time.
 
-- `insertComponent`
-- `removeNode`
-- `moveNode`
-- `bindSpec`
-- `updateToken`
+## 8. AI Flow
 
-### 5.3 Operation Contracts
+For schema-backed pages, prompt AI with:
 
-```ts
-type Operation =
-  | {
-      type: 'replaceText'
-      target: string
-      text: string
-    }
-  | {
-      type: 'setVariant'
-      target: string
-      variant: string
-    }
-  | {
-      type: 'updateStyle'
-      target: string
-      styles: Record<string, string>
-    }
-  | {
-      type: 'replaceClass'
-      target: string
-      className: string
-    }
-  | {
-      type: 'insertComponent'
-      parent: string
-      position: 'before' | 'after' | 'inside:start' | 'inside:end'
-      component: string
-      variant?: string
-      props: Record<string, unknown>
-    }
-  | {
-      type: 'bindSpec'
-      target: string
-      specPath: string
-    }
-  | {
-      type: 'updateToken'
-      tokens: Record<string, string>
-    }
-```
+- page schema
+- selected node
+- semantic index summary
+- available components
+- supported operations
+- design-system constraints
 
-### 5.4 Validation Rules
+AI should return schema operations, not HTML.
 
-Before execution:
+For legacy pages:
 
-- Operation type must be known.
-- Target must exist unless the operation is `insertComponent` or `updateToken`.
-- Target must be inside the selected node unless user allowed page-level edits.
-- Component name must exist in the registry.
-- Variant must be supported by that component.
-- Style props must be in the safe whitelist.
-- Raw `<script>`, event handlers, and arbitrary HTML are rejected.
+- keep current operation/fragment fallback
+- after applying, derive schema from the resulting DOM
 
-## 6. CSS Architecture
+Do not use conversation history to synthesize full `spec.json` yet. That belongs after schema-first editing is stable.
 
-### 6.1 Principle
+## 9. Component Registry
 
-Use:
+The registry should become the single place that defines:
+
+- component name
+- allowed props
+- allowed variants
+- renderer
+- default props
+- safe actions
+
+Near-term components:
+
+- `PageHeader`
+- `FilterBar`
+- `DataTable`
+- `Button`
+- `FormSection`
+- `Modal`
+- `EmptyState`
+- `Navigation`
+- `Section`
+- `StatsGrid`
+- `CardGrid`
+
+The renderer should not accept arbitrary component names without a generic fallback.
+
+## 10. CSS
+
+Keep:
 
 ```txt
 tokens + component recipes + variants + safe style patches
 ```
 
-Do not let AI freely write Tailwind classes or arbitrary CSS.
+Do not reintroduce Tailwind CDN for generated canvas pages.
 
-### 6.2 Storage
-
-1. Built-in design system in code:
-
-```txt
-canvas-editor/src/design-system/
-  tokens.ts
-  component-registry.ts
-  component-recipes.ts
-  style-whitelist.ts
-  render-page.ts
-  render-css.ts
-```
-
-2. Project-level tokens in database:
-
-```txt
-server/src/db/schema.ts -> designTokens
-```
-
-3. Final page HTML contains self-contained CSS:
+Schema-backed pages should produce self-contained HTML:
 
 ```html
-<style data-sf-tokens>
-  :root {
-    --sf-color-brand-600: #4c6ef5;
-    --sf-color-surface-0: #ffffff;
-    --sf-space-4: 16px;
-    --sf-radius-md: 8px;
-  }
-</style>
-
-<style data-sf-components>
-  .sf-filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--sf-space-3);
-    padding: var(--sf-space-4);
-    background: var(--sf-color-surface-0);
-    border: 1px solid var(--sf-color-surface-3);
-    border-radius: var(--sf-radius-md);
-  }
-
-  .sf-filter-bar--compact {
-    gap: var(--sf-space-2);
-    padding: var(--sf-space-3);
-  }
-</style>
+<style data-sf-design-system>...</style>
 ```
 
-### 6.3 Component Recipe Example
+Legacy imported pages may still contain Tailwind classes, but new generated pages should not depend on Tailwind CDN.
 
-```ts
-export const componentRecipes = {
-  FilterBar: {
-    className: 'sf-filter-bar',
-    base: {
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      gap: 'var(--sf-space-3)',
-      padding: 'var(--sf-space-4)',
-      background: 'var(--sf-color-surface-0)',
-      border: '1px solid var(--sf-color-surface-3)',
-      borderRadius: 'var(--sf-radius-md)',
-    },
-    variants: {
-      default: {},
-      compact: {
-        gap: 'var(--sf-space-2)',
-        padding: 'var(--sf-space-3)',
-      },
-      spacious: {
-        gap: 'var(--sf-space-4)',
-        padding: 'var(--sf-space-6)',
-      },
-    },
-  },
-}
-```
+## 11. Legacy Migration
 
-### 6.4 Safe Style Patch
+Migration is gradual:
 
-Allowed initial style props:
+1. Open legacy HTML.
+2. bridge assigns runtime IDs and upgrades semantic attributes.
+3. user edits or saves.
+4. editor derives `PageSchema` from DOM tree.
+5. page becomes partially schema-backed.
+6. later, explicit "Upgrade page to schema source" can switch `source` to `schema`.
+
+Do not silently discard original HTML for complex imported pages until the schema renderer can reproduce them adequately.
+
+## 12. Exports
+
+Keep two export products:
+
+- `spec.json`
+- HTML PRD
+
+For now:
+
+- `spec.json` should export project metadata, pages, page schemas, semantic index, tokens, and existing spec placeholders.
+- HTML PRD should render the current page HTML snapshots.
+
+Later:
+
+- generate `spec.md` from `spec.json` if human-readable Markdown is needed.
+- synthesize data models, API contracts, and quality rules from stable schema plus user conversations.
+
+## 13. Execution Plan
+
+### Phase 2.1: Page Source Model
+
+- add `source: 'schema' | 'legacy-html'` to page objects
+- treat missing source as `legacy-html`
+- new pages use `schema`
+- save schema-backed pages by regenerating HTML from schema
+
+### Phase 2.2: Schema Operation Engine
+
+- add SchemaOperation types and validator
+- add schema tree helpers: find, replace, insert, remove, move
+- execute `replaceText`, `setVariant`, `updateProps`
+- render and reload iframe after schema operation
+
+### Phase 2.3: AI Schema Edit
+
+- send page schema and selected schema node to AI
+- request SchemaOperation JSON for schema-backed pages
+- keep DOM operation fallback for legacy pages
+
+### Phase 2.4: Component Registry Hardening
+
+- add prop definitions and default props
+- validate variants against recipes
+- add `Section`, `StatsGrid`, `CardGrid`, `Navigation`
+
+### Phase 2.5: Legacy Upgrade UI
+
+- show page source status in the UI
+- add an explicit "Upgrade to schema" action
+- preserve original HTML until the user confirms
+
+## 14. Current Priority
+
+Do next:
 
 ```txt
-display
-flexDirection
-justifyContent
-alignItems
-gap
-padding
-margin
-width
-height
-backgroundColor
-color
-borderRadius
-borderColor
-fontSize
-fontWeight
+Phase 2.1 Page Source Model
 ```
 
-Avoid in early versions:
+This is the foundation for the full canvas refactor. It is small enough to verify and does not require changing AI behavior immediately.
 
-```txt
-position
-zIndex
-transform
-animation
-filter
-clipPath
-overflow
-```
-
-These properties can easily break the canvas and should only be introduced with guardrails.
-
-## 7. Prompt Payloads
-
-### 7.1 Edit Request Payload
-
-Send a concise summary rather than full page CSS:
-
-```json
-{
-  "task": "把筛选区改得更紧凑",
-  "selectedNode": {
-    "id": "orders.list.filters",
-    "component": "FilterBar",
-    "role": "filters",
-    "label": "订单筛选区",
-    "variant": "default",
-    "currentClasses": ["sf-filter-bar", "sf-filter-bar--default"],
-    "computedStyleSummary": {
-      "padding": "16px",
-      "gap": "12px",
-      "backgroundColor": "var(--sf-color-surface-0)"
-    }
-  },
-  "nearbyContext": {
-    "pageId": "orders.list",
-    "pageTitle": "订单管理",
-    "nearbyTexts": ["订单状态", "下单时间", "客户名称", "搜索", "重置"]
-  },
-  "allowedOperations": ["setVariant", "updateStyle", "replaceText", "insertComponent"],
-  "availableVariants": {
-    "FilterBar": ["default", "compact", "spacious"]
-  },
-  "styleRules": {
-    "useTokens": true,
-    "doNotWriteRawHtml": true,
-    "allowedProps": ["padding", "gap", "backgroundColor", "borderRadius"]
-  }
-}
-```
-
-AI should return only operation JSON:
-
-```json
-{
-  "operations": [
-    {
-      "type": "setVariant",
-      "target": "orders.list.filters",
-      "variant": "compact"
-    }
-  ]
-}
-```
-
-### 7.2 Generation Request Payload
-
-```json
-{
-  "task": "生成一个订单管理后台，包含订单列表、筛选、导出和详情入口",
-  "productType": "B2B admin dashboard",
-  "designSystem": {
-    "tokens": {
-      "color.brand.600": "#4c6ef5",
-      "radius.md": "8px",
-      "space.4": "16px"
-    },
-    "components": ["AppShell", "PageHeader", "FilterBar", "DataTable", "Button", "Modal"],
-    "rules": [
-      "优先使用后台管理布局",
-      "不要使用大面积渐变",
-      "表格页优先使用 PageHeader + FilterBar + DataTable",
-      "所有关键区域必须带稳定 data-sf-id"
-    ]
-  }
-}
-```
-
-## 8. Bridge Changes
-
-Current bridge already supports element selection, style update, element replacement, text editing, and HTML recovery.
-
-Add these message types:
-
-```txt
-execute-operations
-operation-result
-set-variant
-replace-text
-insert-component
-bind-spec
-update-token
-get-semantic-node
-```
-
-Recommended execution model:
-
-1. Frontend validates operations.
-2. Frontend sends `execute-operations` to iframe.
-3. Bridge resolves targets by `[data-sf-id="..."]`.
-4. Bridge applies operations transactionally where possible.
-5. Bridge sends `operation-result`.
-6. Frontend requests `get-page-html`.
-7. Store pushes undo and marks page dirty.
-
-## 9. Persistence Model
-
-Short term:
-
-- Keep `specs.pages[].html` as the source of iframe rendering.
-- Add semantic attributes into saved HTML.
-- Store generated spec metadata in existing `specs` JSON fields.
-
-Medium term:
-
-- Add a structured `pageSchemas` field or a new table.
-- Keep both schema and HTML:
-  - schema for controlled regeneration and AI reasoning.
-  - HTML for fast iframe rendering and export.
-
-Suggested eventual shape:
-
-```ts
-type PageRecord = {
-  id: string
-  title: string
-  html: string
-  schema?: PageSchema
-  semanticIndex?: Record<string, SemanticNode>
-}
-```
-
-## 10. Implementation Roadmap
-
-### Phase 0: Stabilize Current Build
-
-- Fix TypeScript build errors.
-- Keep existing HTML edit path working.
-- Add no new product concepts yet.
-
-Acceptance:
-
-- `pnpm build` passes.
-
-### Phase 1: Semantic DOM
-
-- Update page generation prompt to require `data-sf-*`.
-- Update bridge tree parser to read and emit:
-  - `sfId`
-  - `component`
-  - `role`
-  - `label`
-  - `variant`
-  - `specPath`
-- Add fallback semantic inference for legacy HTML.
-- Show semantic metadata in the right panel.
-
-Acceptance:
-
-- New generated/created pages include stable `data-sf-id`.
-- Layer tree prefers `data-sf-label` over heuristic labels.
-- Existing mock pages still load.
-
-### Phase 2: Operation Protocol
-
-- Add operation schema.
-- Add server prompt for operation JSON.
-- Add frontend parser and validator.
-- Add bridge executor for:
-  - `replaceText`
-  - `setVariant`
-  - `updateStyle`
-  - `replaceClass`
-- Keep old HTML-fragment mode as fallback.
-
-Acceptance:
-
-- Selecting a node and saying "改紧凑一点" returns and applies `setVariant` or safe `updateStyle`.
-- Invalid operations are rejected without modifying DOM.
-- Undo/redo still works.
-
-### Phase 3: CSS Design System
-
-- Add `canvas-editor/src/design-system/*`.
-- Add token renderer.
-- Add component recipe renderer.
-- Add default recipes for:
-  - AppShell
-  - PageHeader
-  - FilterBar
-  - DataTable
-  - Button
-  - FormSection
-  - Modal
-  - EmptyState
-- Inject `<style data-sf-tokens>` and `<style data-sf-components>` into generated pages.
-
-Acceptance:
-
-- Generated pages render without Tailwind CDN.
-- Exported HTML is self-contained.
-- AI edits use tokens, variants, and safe style patches.
-
-### Phase 4: Page Schema Renderer
-
-- Define Page Schema.
-- Add renderer from Page Schema to HTML.
-- Use registry components for new page generation.
-- Store schema next to HTML.
-
-Acceptance:
-
-- New page generation no longer depends on full raw HTML from AI.
-- AI returns JSON page structure.
-- Renderer produces semantic HTML with component CSS.
-
-### Phase 5: Spec Synchronization
-
-- Build semantic index from DOM.
-- Bind semantic nodes to spec paths.
-- Update spec when nodes are renamed, inserted, or removed.
-
-Acceptance:
-
-- `SpecStatus` reads real page/spec/token counts.
-- Selecting a node shows real spec binding.
-- Exported `spec.json` reflects the current prototype.
-
-## 11. Near-Term Code Targets
-
-Start with these files:
-
-```txt
-canvas-editor/src/design-system/tokens.ts
-canvas-editor/src/design-system/component-registry.ts
-canvas-editor/src/design-system/component-recipes.ts
-canvas-editor/src/design-system/style-whitelist.ts
-canvas-editor/src/design-system/render-css.ts
-canvas-editor/src/operations/types.ts
-canvas-editor/src/operations/validate-operation.ts
-canvas-editor/src/operations/apply-operation.ts
-server/src/services/ai.ts
-server/src/routes/chat.ts
-canvas-editor/src/bridge/bridge-script.ts
-canvas-editor/src/hooks/use-bridge.ts
-```
-
-The first useful vertical slice is:
-
-```txt
-replace HTML-fragment AI edits for selected nodes
-with
-AI operation JSON for replaceText/setVariant/updateStyle
-```
-
-## 12. Decision Summary
-
-- Keep Tailwind for the editor UI.
-- Do not rely on Tailwind CDN for generated canvas pages long term.
-- Use self-contained `sf-*` CSS classes for generated pages.
-- Use semantic `data-sf-*` attributes as AI/editing targets.
-- AI should return Page Schema JSON for generation.
-- AI should return Operation JSON for editing.
-- Validate everything before touching iframe DOM.
-- Keep HTML as current rendering source until schema renderer is stable.

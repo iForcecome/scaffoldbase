@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Download, FileText } from 'lucide-react'
+import { Download, FileText, RefreshCw } from 'lucide-react'
 import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
 import { api } from '../../services/api'
 
@@ -9,6 +9,7 @@ export function PagePropertiesSection() {
   const activePageId = useEditorStore(s => s.activePageId)
   const pages = useEditorStore(s => s.pages)
   const renamePage = useEditorStore(s => s.renamePage)
+  const upgradePageToSchema = useEditorStore(s => s.upgradePageToSchema)
   const deviceWidth = useEditorStore(s => s.getDeviceWidth())
   const setCustomWidth = useEditorStore(s => s.setCustomWidth)
 
@@ -90,14 +91,19 @@ export function PagePropertiesSection() {
     updateBodyStyle('background-color', value)
   }
 
-  const handleDownload = async (type: 'spec_json' | 'html_prd') => {
+  const handleDownload = async (type: 'spec_json' | 'html_prd', scope: 'page' | 'project', pageId?: string | null) => {
     if (!projectId) return
     const base = projectName.trim() || 'specflow'
     if (type === 'spec_json') {
-      await api.exports.downloadSpecJson(projectId, base)
+      await api.exports.downloadSpecJson(projectId, base, scope, pageId)
     } else {
-      await api.exports.downloadHtmlPrd(projectId, base)
+      await api.exports.downloadHtmlPrd(projectId, base, scope, pageId)
     }
+  }
+
+  const handleUpgradeToSchema = () => {
+    if (!page) return
+    upgradePageToSchema(page.id)
   }
 
   const padLabels = ['上', '右', '下', '左']
@@ -107,6 +113,21 @@ export function PagePropertiesSection() {
       {/* Page Title */}
       <div className="p-3 border-b border-surface-3">
         <div className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">页面</div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] text-ink-3">数据源</span>
+          <span className={`spec-mini-tag ${page?.source === 'schema' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+            {page?.source === 'schema' ? 'Schema' : 'Legacy HTML'}
+          </span>
+        </div>
+        {page?.source !== 'schema' && (
+          <button
+            className="mb-3 w-full h-8 rounded-md border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700 flex items-center justify-center gap-1.5 hover:bg-amber-100"
+            onClick={handleUpgradeToSchema}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            转换为 Schema 页面
+          </button>
+        )}
         <div>
           <label className="text-[11px] text-ink-3 mb-1 block">页面标题</label>
           <input
@@ -193,17 +214,31 @@ export function PagePropertiesSection() {
         <div className="grid gap-2">
           <button
             className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
-            onClick={() => handleDownload('spec_json')}
+            onClick={() => handleDownload('spec_json', 'page', activePageId)}
           >
             <Download className="w-3.5 h-3.5" />
-            导出 spec.json
+            当前页 spec.json
           </button>
           <button
             className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
-            onClick={() => handleDownload('html_prd')}
+            onClick={() => handleDownload('html_prd', 'page', activePageId)}
           >
             <FileText className="w-3.5 h-3.5" />
-            导出 HTML PRD
+            当前页 HTML PRD
+          </button>
+          <button
+            className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
+            onClick={() => handleDownload('spec_json', 'project')}
+          >
+            <Download className="w-3.5 h-3.5" />
+            全部 spec.json
+          </button>
+          <button
+            className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
+            onClick={() => handleDownload('html_prd', 'project')}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            全部 HTML PRD
           </button>
         </div>
       </div>

@@ -9,22 +9,28 @@ import {
   buildFragmentSystemPrompt,
   buildOperationSystemPrompt,
   buildOperationUserPrompt,
+  buildSchemaOperationSystemPrompt,
+  buildSchemaOperationUserPrompt,
   extractDiffs,
   applyDiffs,
   extractHTML,
   extractOperationResponse,
+  extractSchemaOperationResponse,
   type ChatMessage,
 } from '../services/ai.js'
 
-type Page = { id: string; title: string; html: string; schema?: unknown }
+type Page = { id: string; title: string; html: string; schema?: unknown; source?: 'schema' | 'legacy-html'; origin?: unknown }
 type ChatBody = {
   message: string
   pageId?: string
+  pageSource?: 'schema' | 'legacy-html'
+  pageSchema?: unknown
   elementId?: string
   elementHtml?: string
   selectedNode?: unknown
 }
 type ChatMode = {
+  isSchemaMode: boolean
   isFragmentMode: boolean
   wantsLayoutRewrite: boolean
   isOperationMode: boolean
@@ -75,16 +81,33 @@ function optimizeLayoutFallbackFragment(html: string): string | null {
   return changed ? result : null
 }
 
-function resolveChatMode(body: ChatBody): ChatMode {
+function resolveChatMode(body: ChatBody, page?: Page): ChatMode {
+  const pageSource = body.pageSource ?? page?.source
+  const pageSchema = body.pageSchema ?? page?.schema
+  const isSchemaMode = pageSource === 'schema' && !!pageSchema
   const isFragmentMode = !!body.elementHtml
   const wantsLayoutRewrite = !!body.elementHtml &&
     body.elementHtml.length > 800 &&
     /布局|排版|优化|美化|重构|整体|间距|对齐|层次|视觉/.test(body.message)
   const isOperationMode = !!body.elementHtml && !!body.selectedNode && !wantsLayoutRewrite
-  return { isFragmentMode, wantsLayoutRewrite, isOperationMode }
+  return { isSchemaMode, isFragmentMode, wantsLayoutRewrite, isOperationMode }
 }
 
-function buildChatMessages(body: ChatBody, pageHtml: string, mode: ChatMode): ChatMessage[] {
+function buildChatMessages(body: ChatBody, pageHtml: string, mode: ChatMode, page?: Page): ChatMessage[] {
+  if (mode.isSchemaMode) {
+    return [
+      { role: 'system', content: buildSchemaOperationSystemPrompt() },
+      {
+        role: 'user',
+        content: buildSchemaOperationUserPrompt({
+          message: body.message,
+          pageSchema: body.pageSchema ?? page?.schema,
+          selectedNode: body.selectedNode ?? { id: page?.id, label: page?.title, component: 'Page' },
+        }),
+      },
+    ]
+  }
+
   if (mode.isOperationMode) {
     return [
       { role: 'system', content: buildOperationSystemPrompt() },
@@ -116,6 +139,14 @@ function buildChatMessages(body: ChatBody, pageHtml: string, mode: ChatMode): Ch
 }
 
 function resolveAppliedResult(fullContent: string, body: ChatBody, pageHtml: string, mode: ChatMode) {
+  if (mode.isSchemaMode) {
+    const operationResponse = extractSchemaOperationResponse(fullContent)
+    if (operationResponse) {
+      return { didApply: true, event: { type: 'applied', schemaOperations: operationResponse.operations, mode: 'schema-operations' } }
+    }
+    return { didApply: false, event: null }
+  }
+
   if (mode.isOperationMode) {
     const operationResponse = extractOperationResponse(fullContent)
     if (operationResponse) {
@@ -164,6 +195,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           message: { type: 'string', minLength: 1 },
           pageId: { type: 'string' },
+          pageSource: { type: 'string', enum: ['schema', 'legacy-html'] },
+          pageSchema: { type: 'object', additionalProperties: true },
           elementId: { type: 'string' },
           elementHtml: { type: 'string' },
           selectedNode: { type: 'object' },
@@ -187,8 +220,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     const pages = (spec.pages ?? []) as Page[]
     const page = body.pageId ? pages.find((p) => p.id === body.pageId) : pages[0]
     const pageHtml = page?.html ?? ''
-    const mode = resolveChatMode(body)
-    const apiMessages = buildChatMessages(body, pageHtml, mode)
+    const mode = resolveChatMode(body, page)
+    const apiMessages = buildChatMessages(body, pageHtml, mode, page)
 
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -247,6 +280,8 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           message: { type: 'string', minLength: 1 },
           pageId: { type: 'string' },
+          pageSource: { type: 'string', enum: ['schema', 'legacy-html'] },
+          pageSchema: { type: 'object', additionalProperties: true },
           elementHtml: { type: 'string' },
           selectedNode: { type: 'object' },
           aiContent: { type: 'string' },
@@ -270,7 +305,7 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
     const pages = (spec.pages ?? []) as Page[]
     const page = body.pageId ? pages.find((p) => p.id === body.pageId) : pages[0]
     const pageHtml = page?.html ?? ''
-    const mode = resolveChatMode(body)
+    const mode = resolveChatMode(body, page)
     const fullContent = body.aiContent ?? ''
     const result = resolveAppliedResult(fullContent, body, pageHtml, mode)
 

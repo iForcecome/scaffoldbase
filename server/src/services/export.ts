@@ -5,6 +5,7 @@ type Project = InferSelectModel<typeof projects>
 type Spec = InferSelectModel<typeof specs>
 type DesignToken = InferSelectModel<typeof designTokens>
 type ExportType = 'spec_json' | 'html_prd'
+type ExportScope = 'page' | 'project'
 
 interface PageSchema {
   page: {
@@ -13,6 +14,15 @@ interface PageSchema {
     layout: string
     sections: unknown[]
   }
+}
+
+interface ExportPage {
+  id: string
+  title: string
+  html: string
+  schema?: unknown
+  source?: 'schema' | 'legacy-html'
+  origin?: unknown
 }
 
 function escapeHtml(value: unknown): string {
@@ -35,9 +45,18 @@ function normalizePageSchema(page: { id: string; title: string; html: string; sc
   return maybe
 }
 
-export function buildSpecJsonExport(project: Project, spec: Spec, tokens: DesignToken[], generatedAt: string) {
+function filterPages(pages: ExportPage[], scope: ExportScope, pageId?: string | null): ExportPage[] {
+  if (scope === 'project') return pages
+  if (!pageId) return pages.slice(0, 1)
+  return pages.filter(page => page.id === pageId)
+}
+
+export function buildSpecJsonExport(project: Project, spec: Spec, tokens: DesignToken[], generatedAt: string, scope: ExportScope, pageId?: string | null) {
+  const pages = filterPages((spec.pages ?? []) as ExportPage[], scope, pageId)
   return {
     exportType: 'spec_json',
+    scope,
+    pageId: pageId ?? null,
     generatedAt,
     project: {
       id: project.id,
@@ -53,7 +72,7 @@ export function buildSpecJsonExport(project: Project, spec: Spec, tokens: Design
     spec: {
       id: spec.id,
       version: spec.version,
-      pages: spec.pages ?? [],
+      pages,
       dataModels: spec.dataModels ?? [],
       apiContracts: spec.apiContracts ?? [],
       qualityRules: spec.qualityRules ?? {},
@@ -65,7 +84,7 @@ export function buildSpecJsonExport(project: Project, spec: Spec, tokens: Design
   }
 }
 
-function pagePreviewHtml(page: { id: string; title: string; html: string; schema?: unknown }) {
+function pagePreviewHtml(page: ExportPage) {
   const schema = normalizePageSchema(page)
   const semanticSummary = schema
     ? `<pre class="schema-json">${escapeHtml(JSON.stringify(schema, null, 2))}</pre>`
@@ -88,8 +107,8 @@ function pagePreviewHtml(page: { id: string; title: string; html: string; schema
   </article>`
 }
 
-export function buildHtmlPrdExport(project: Project, spec: Spec, tokens: DesignToken[], generatedAt: string) {
-  const pages = (spec.pages ?? []) as Array<{ id: string; title: string; html: string; schema?: unknown }>
+export function buildHtmlPrdExport(project: Project, spec: Spec, tokens: DesignToken[], generatedAt: string, scope: ExportScope, pageId?: string | null) {
+  const pages = filterPages((spec.pages ?? []) as ExportPage[], scope, pageId)
   const pageBlocks = pages.map(pagePreviewHtml).join('\n')
   const tokenCount = tokens.length
   const pageCount = pages.length
@@ -159,10 +178,10 @@ export function buildHtmlPrdExport(project: Project, spec: Spec, tokens: DesignT
       <h1>${escapeHtml(project.name)} HTML PRD</h1>
       <p>${escapeHtml(project.description || 'SpecFlow 结构化导出文档')}</p>
       <div class="stats">
-        <span class="chip">${pageCount} 页面</span>
-        <span class="chip">${tokenCount} Design Tokens</span>
-        <span class="chip">Spec v${spec.version}</span>
-        <span class="chip">${escapeHtml(generatedAt)}</span>
+      <span class="chip">${pageCount} 页面</span>
+      <span class="chip">${tokenCount} Design Tokens</span>
+      <span class="chip">Spec v${spec.version}</span>
+      <span class="chip">${escapeHtml(generatedAt)}</span>
       </div>
     </section>
 

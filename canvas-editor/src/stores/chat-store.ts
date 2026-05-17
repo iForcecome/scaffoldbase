@@ -3,6 +3,8 @@ import { api } from '../services/api'
 import { useEditorStore, sendBridgeMessage, requestFromBridge, suppressNextIframeReload } from './editor-store'
 import type { Operation } from '../operations/types'
 import { validateOperationResponse } from '../operations/validate-operation'
+import type { SchemaOperation } from '../schema-operations/types'
+import { validateSchemaOperationResponse } from '../schema-operations/validate-schema-operation'
 
 export interface ChatMessage {
   id: string
@@ -10,6 +12,7 @@ export interface ChatMessage {
   content: string
   timestamp: number
   htmlApplied?: boolean
+  appliedMode?: 'schema' | 'dom' | 'fragment' | 'diff'
 }
 
 interface ChatState {
@@ -36,8 +39,27 @@ interface SSEEvent {
   content?: string
   html?: string
   operations?: Operation[]
-  mode?: 'diff' | 'fragment' | 'operations'
+  schemaOperations?: SchemaOperation[]
+  mode?: 'diff' | 'fragment' | 'operations' | 'schema-operations'
   message?: string
+}
+
+function toSchemaOperations(operations: Operation[]): SchemaOperation[] | null {
+  const schemaOperations: SchemaOperation[] = []
+
+  for (const operation of operations) {
+    if (operation.type === 'replaceText') {
+      schemaOperations.push({ type: 'replaceText', target: operation.target, text: operation.text })
+      continue
+    }
+    if (operation.type === 'setVariant') {
+      schemaOperations.push({ type: 'setVariant', target: operation.target, variant: operation.variant })
+      continue
+    }
+    return null
+  }
+
+  return schemaOperations
 }
 
 async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
@@ -146,7 +168,15 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
 
       const response = await api.chat.stream(
         editorStore.projectId,
-        { message: text, pageId: page.id, elementHtml, elementId, selectedNode },
+        {
+          message: text,
+          pageId: page.id,
+          pageSource: page.source,
+          pageSchema: page.source === 'schema' ? page.schema : undefined,
+          elementHtml,
+          elementId,
+          selectedNode,
+        },
         abortController.signal,
       )
 
@@ -157,6 +187,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
 
       let fullContent = ''
       let htmlApplied = false
+      let appliedMode: ChatMessage['appliedMode']
 
       for await (const event of parseSSE(response, abortController.signal)) {
         switch (event.type) {
@@ -166,11 +197,40 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
             break
 
           case 'applied':
+            if (event.schemaOperations) {
+              const currentPage = useEditorStore.getState().getActivePage()
+              if (currentPage?.source !== 'schema') {
+                throw new Error('Schema operations can only be applied to schema pages')
+              }
+              const schemaValidation = validateSchemaOperationResponse({ operations: event.schemaOperations })
+              if (!schemaValidation.ok || !schemaValidation.value) {
+                throw new Error(`Schema operation validation failed: ${schemaValidation.errors.join('; ')}`)
+              }
+              useEditorStore.getState().applySchemaOperations(currentPage.id, schemaValidation.value.operations)
+              htmlApplied = true
+              appliedMode = 'schema'
+              break
+            }
+
             if (event.operations) {
               const validation = validateOperationResponse({ operations: event.operations })
               if (!validation.ok || !validation.value) {
                 throw new Error(`Operation validation failed: ${validation.errors.join('; ')}`)
               }
+
+              const currentPage = useEditorStore.getState().getActivePage()
+              const schemaOperations = currentPage?.source === 'schema' ? toSchemaOperations(validation.value.operations) : null
+              if (currentPage?.source === 'schema' && schemaOperations) {
+                const schemaValidation = validateSchemaOperationResponse({ operations: schemaOperations })
+                if (!schemaValidation.ok || !schemaValidation.value) {
+                  throw new Error(`Schema operation validation failed: ${schemaValidation.errors.join('; ')}`)
+                }
+                useEditorStore.getState().applySchemaOperations(currentPage.id, schemaValidation.value.operations)
+                htmlApplied = true
+                appliedMode = 'schema'
+                break
+              }
+
               editorStore.pushUndo()
               const result = await requestFromBridge<{ ok: boolean; errors?: string[] }>(
                 { type: 'execute-operations', operations: validation.value.operations },
@@ -190,6 +250,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
                 // visual update already applied via bridge
               }
               htmlApplied = true
+              appliedMode = 'dom'
               break
             }
             if (event.html) {
@@ -210,6 +271,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
                 editorStore.updatePageHTML(page.id, event.html)
               }
               htmlApplied = true
+              appliedMode = event.mode === 'diff' ? 'diff' : 'fragment'
             }
             break
 
@@ -227,6 +289,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
         content: fullContent,
         timestamp: Date.now(),
         htmlApplied,
+        appliedMode,
       }
 
       set(s => ({

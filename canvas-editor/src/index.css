@@ -3,6 +3,7 @@
 @theme {
   --font-sans: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Playfair Display', 'Noto Sans SC', serif;
 
   --color-brand-50: #f0f4ff;
   --color-brand-100: #dbe4ff;
@@ -29,6 +30,34 @@
 
   --color-canvas-bg: #f5f5f7;
   --color-canvas-grid: #e8e8ec;
+
+  /* Dark warm palette (homepage) */
+  --color-bg-0: #100c08;
+  --color-bg-1: #1a1410;
+  --color-bg-2: #241c16;
+  --color-bg-3: #2e251e;
+  --color-bg-4: #3a3026;
+
+  --color-line-1: #2a221b;
+  --color-line-2: #3a3026;
+  --color-line-3: #4a3f33;
+
+  --color-warm-0: #fafaf9;
+  --color-warm-1: #e7e1d8;
+  --color-warm-2: #a8a097;
+  --color-warm-3: #76706a;
+  --color-warm-4: #52504c;
+
+  --color-flame-50:  #fff7ed;
+  --color-flame-100: #ffedd5;
+  --color-flame-200: #fed7aa;
+  --color-flame-300: #fdba74;
+  --color-flame-400: #fb923c;
+  --color-flame-500: #f97316;
+  --color-flame-600: #ea580c;
+  --color-flame-700: #c2410c;
+  --color-flame-800: #9a3412;
+  --color-flame-900: #7c2d12;
 }
 
 @layer base {
@@ -238,4 +267,36 @@
   .thinking-dot:nth-child(3) {
     animation-delay: 0.4s;
   }
+
+  /* Homepage utilities */
+  .font-display { font-family: var(--font-display); font-feature-settings: 'kern' 1, 'liga' 1; }
+  .gradient-flame {
+    background: linear-gradient(135deg, #fbbf24 0%, #f97316 50%, #ea580c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .glow-bg {
+    background: radial-gradient(60% 50% at 50% 0%, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.05) 40%, transparent 75%);
+  }
+  .glow-input {
+    box-shadow: 0 0 0 1px #3a3026, 0 30px 80px -20px rgba(249,115,22,0.25), 0 8px 24px -8px rgba(0,0,0,0.6);
+  }
+  .glow-btn {
+    box-shadow: 0 6px 20px -4px rgba(249,115,22,0.6), inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .home-grain { position: relative; }
+  .home-grain::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background-image: radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+  .home-card-lift { transition: all 0.28s cubic-bezier(0.4,0,0.2,1); }
+  .home-card-lift:hover { transform: translateY(-3px); border-color:#4a3f33; box-shadow: 0 18px 40px -16px rgba(249,115,22,0.18); }
+
+  .home-thumb-grid { display:grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr); gap:3px; padding:8px; height:100%; }
+  .home-thumb-grid > div { border-radius:3px; }
+
+  @keyframes blink2 { 50% { opacity:0; } }
+  .blink2 { animation: blink2 1s steps(2) infinite; }
 }

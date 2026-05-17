@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronRight, Plus, File, MoreHorizontal,
-  Copy, Trash2, Pencil,
+  Copy, Trash2, Pencil, Upload,
 } from 'lucide-react'
 import { useEditorStore } from '../../stores/editor-store'
+import { api } from '../../services/api'
 
 export function PageList() {
   const pages = useEditorStore(s => s.pages)
@@ -13,13 +14,16 @@ export function PageList() {
   const deletePage = useEditorStore(s => s.deletePage)
   const duplicatePage = useEditorStore(s => s.duplicatePage)
   const renamePage = useEditorStore(s => s.renamePage)
+  const projectId = useEditorStore(s => s.projectId)
 
   const [collapsed, setCollapsed] = useState(false)
   const [menuPageId, setMenuPageId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [uploading, setUploading] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (renamingId && inputRef.current) {
@@ -46,6 +50,35 @@ export function PageList() {
     setRenamingId(null)
   }
 
+  const handleUploadHtmlPage = async (file: File | undefined) => {
+    if (!file || !projectId || uploading) return
+    try {
+      setUploading(true)
+      const result = await api.ingestion.run(projectId, {
+        appendPages: true,
+        materials: [{
+          filename: file.name,
+          mimeType: file.type || 'text/html',
+          content: await file.text(),
+          intendedUse: 'page',
+        }],
+      })
+      useEditorStore.setState((state) => ({
+        ...state,
+        pages: result.pages,
+        activePageId: result.pages[result.pages.length - 1]?.id ?? state.activePageId,
+        selectedIds: [],
+        selectedElements: {},
+        selectedStyles: null,
+        domTree: [],
+        semanticIndex: [],
+      }))
+    } finally {
+      setUploading(false)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className="border-b border-surface-3">
       {/* Header */}
@@ -61,10 +94,29 @@ export function PageList() {
         <div
           className="w-5 h-5 rounded flex items-center justify-center hover:bg-surface-2 text-ink-3"
           onClick={(e) => { e.stopPropagation(); addPage() }}
+          title="新建 Schema 页面"
         >
           <Plus className="w-3 h-3" />
         </div>
       </button>
+      <div className="px-2 pb-2 flex gap-1">
+        <button
+          className="flex-1 h-7 rounded-md border border-surface-3 bg-white text-[11px] text-ink-2 hover:bg-surface-1 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          type="button"
+          disabled={uploading}
+          onClick={() => uploadInputRef.current?.click()}
+        >
+          <Upload className="w-3 h-3" />
+          {uploading ? '标准化中...' : '上传 HTML 添加页面'}
+        </button>
+        <input
+          ref={uploadInputRef}
+          type="file"
+          accept=".html,text/html"
+          className="hidden"
+          onChange={(event) => { void handleUploadHtmlPage(event.target.files?.[0]) }}
+        />
+      </div>
 
       {/* Page list */}
       {!collapsed && (
