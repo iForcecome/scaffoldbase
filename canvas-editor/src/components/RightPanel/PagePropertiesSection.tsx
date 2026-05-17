@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Download, FileText } from 'lucide-react'
 import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { api } from '../../services/api'
 
 const BODY_SF_ID = 'sf-0'
 
@@ -11,6 +13,8 @@ export function PagePropertiesSection() {
   const setCustomWidth = useEditorStore(s => s.setCustomWidth)
 
   const page = pages.find(p => p.id === activePageId)
+  const projectId = useEditorStore(s => s.projectId)
+  const projectName = useEditorStore(s => s.projectName)
   const [title, setTitle] = useState(page?.title ?? '')
   const [widthLocal, setWidthLocal] = useState(String(deviceWidth))
   const [minWidth, setMinWidth] = useState('')
@@ -84,6 +88,16 @@ export function PagePropertiesSection() {
   const handleBgChange = (value: string) => {
     setBgColor(value)
     updateBodyStyle('background-color', value)
+  }
+
+  const handleDownload = async (type: 'spec_json' | 'html_prd') => {
+    if (!projectId) return
+    const base = projectName.trim() || 'specflow'
+    if (type === 'spec_json') {
+      await api.exports.downloadSpecJson(projectId, base)
+    } else {
+      await api.exports.downloadHtmlPrd(projectId, base)
+    }
   }
 
   const padLabels = ['上', '右', '下', '左']
@@ -171,6 +185,26 @@ export function PagePropertiesSection() {
               <span className="text-[9px] text-ink-4 mt-0.5">{label}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="p-3 border-b border-surface-3">
+        <div className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">导出</div>
+        <div className="grid gap-2">
+          <button
+            className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
+            onClick={() => handleDownload('spec_json')}
+          >
+            <Download className="w-3.5 h-3.5" />
+            导出 spec.json
+          </button>
+          <button
+            className="w-full h-8 rounded-md border border-surface-3 bg-white text-xs font-medium text-ink-1 flex items-center justify-center gap-1.5 hover:bg-surface-1"
+            onClick={() => handleDownload('html_prd')}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            导出 HTML PRD
+          </button>
         </div>
       </div>
     </div>

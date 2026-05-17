@@ -1,4 +1,4 @@
-import { type RefObject } from 'react'
+import { type RefObject, useState, useLayoutEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
 
 interface SelectionOverlayProps {
@@ -20,6 +20,11 @@ export function SelectionOverlay({ iframeRef }: SelectionOverlayProps) {
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectedElements = useEditorStore(s => s.selectedElements)
   const viewport = useEditorStore(s => s.viewport)
+  const [, remeasure] = useState(0)
+
+  useLayoutEffect(() => {
+    remeasure(n => n + 1)
+  }, [viewport.x, viewport.y, viewport.zoom])
 
   if (selectedIds.length === 0 || !iframeRef.current) return null
 

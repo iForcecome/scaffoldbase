@@ -1,11 +1,19 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { api } from '../services/api'
+import { clonePageSchema, createDefaultPageSchema, renderPageSchemaToHtml, type PageSchema } from '../page-schema/render'
+import { buildSemanticIndex, type SemanticIndexEntry } from '../utils/semantic-index'
 
 export interface DOMNode {
   id: string
+  sfId?: string | null
   tag: string
   label: string
+  semanticLabel?: string | null
+  component?: string | null
+  role?: string | null
+  variant?: string | null
+  specPath?: string | null
   rect: { x: number; y: number; width: number; height: number }
   styles: Record<string, string>
   children: DOMNode[]
@@ -15,6 +23,7 @@ export interface Page {
   id: string
   title: string
   html: string
+  schema?: PageSchema | null
 }
 
 export type Device = 'desktop' | 'tablet' | 'mobile'
@@ -32,6 +41,11 @@ type Rect = { x: number; y: number; width: number; height: number }
 export interface SelectedElement {
   label: string | null
   rect: Rect | null
+  sfId?: string | null
+  component?: string | null
+  role?: string | null
+  variant?: string | null
+  specPath?: string | null
 }
 
 interface EditorState {
@@ -40,6 +54,7 @@ interface EditorState {
   pages: Page[]
   activePageId: string
   domTree: DOMNode[]
+  semanticIndex: SemanticIndexEntry[]
   selectedIds: string[]
   selectedElements: Record<string, SelectedElement>
   selectedStyles: Record<string, string> | null
@@ -62,8 +77,8 @@ interface EditorState {
 interface EditorActions {
   loadProject: (projectId: string, name: string, pages: Page[]) => void
   setActivePage: (id: string) => void
-  setDomTree: (tree: DOMNode[]) => void
-  selectElement: (id: string | null, rect?: Rect | null, label?: string | null, multi?: boolean) => void
+    setDomTree: (tree: DOMNode[]) => void
+  selectElement: (id: string | null, rect?: Rect | null, label?: string | null, multi?: boolean, meta?: Partial<SelectedElement>) => void
   updateSelectedRect: (id: string, rect: Rect) => void
   setSelectedStyles: (styles: Record<string, string>) => void
   hoverElement: (id: string | null, rect?: Rect | null) => void
@@ -103,6 +118,14 @@ export function sendBridgeMessage(msg: Record<string, unknown>) {
   _bridgeSender?.(msg)
 }
 
+let _pendingRevealId: string | null = null
+export function setPendingReveal(id: string | null) { _pendingRevealId = id }
+export function consumePendingReveal(): string | null {
+  const id = _pendingRevealId
+  _pendingRevealId = null
+  return id
+}
+
 let _suppressIframeReload = false
 export function suppressNextIframeReload() { _suppressIframeReload = true }
 export function consumeSuppressReload(): boolean {
@@ -133,7 +156,15 @@ export function requestFromBridge<T = Record<string, unknown>>(
   })
 }
 
-const DEFAULT_HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><script src="https://cdn.tailwindcss.com"><\/script></head><body class="bg-white p-8"><h1 class="text-2xl font-bold">新页面</h1><p class="text-gray-500 mt-2">开始编辑你的页面</p></body></html>'
+function createGeneratedPage(id: string, title: string): Page {
+  const schema = createDefaultPageSchema(id, title)
+  return {
+    id,
+    title,
+    html: renderPageSchemaToHtml(schema),
+    schema,
+  }
+}
 
 export const useEditorStore = create<EditorState & EditorActions>()(
   immer((set, get) => ({
@@ -142,6 +173,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     pages: [],
     activePageId: '',
     domTree: [],
+    semanticIndex: [],
     selectedIds: [],
     selectedElements: {},
     selectedStyles: null,
@@ -164,7 +196,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.projectId = projectId
       s.projectName = name
       if (pages.length === 0) {
-        const defaultPage: Page = { id: 'page-' + Date.now(), title: '首页', html: DEFAULT_HTML }
+        const defaultPage = createGeneratedPage('page-' + Date.now(), '首页')
         s.pages = [defaultPage]
         s.activePageId = defaultPage.id
         s.dirtyPageIds = [defaultPage.id]
@@ -174,6 +206,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         s.dirtyPageIds = []
       }
       s.domTree = []
+      s.semanticIndex = []
       s.selectedIds = []
       s.selectedElements = {}
       s.selectedStyles = null
@@ -194,12 +227,16 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.hoveredId = null
       s.hoveredRect = null
       s.domTree = []
+      s.semanticIndex = []
       s.viewport = { x: 0, y: 0, zoom: 1 }
     }),
 
-    setDomTree: (tree) => set((s) => { s.domTree = tree }),
+    setDomTree: (tree) => set((s) => {
+      s.domTree = tree
+      s.semanticIndex = buildSemanticIndex(tree)
+    }),
 
-    selectElement: (id, rect, label, multi) => set((s) => {
+    selectElement: (id, rect, label, multi, meta) => set((s) => {
       if (id === null) {
         s.selectedIds = []
         s.selectedElements = {}
@@ -217,12 +254,12 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           }
         } else {
           s.selectedIds.push(id)
-          s.selectedElements[id] = { label: label ?? null, rect: rect ?? null }
+          s.selectedElements[id] = { label: label ?? null, rect: rect ?? null, ...meta }
           s.selectedStyles = null
         }
       } else {
         s.selectedIds = [id]
-        s.selectedElements = { [id]: { label: label ?? null, rect: rect ?? null } }
+        s.selectedElements = { [id]: { label: label ?? null, rect: rect ?? null, ...meta } }
         s.selectedStyles = null
       }
     }),
@@ -327,8 +364,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     addPage: () => set((s) => {
       const id = 'page-' + Date.now()
-      const html = DEFAULT_HTML
-      s.pages.push({ id, title: '新页面', html })
+      s.pages.push(createGeneratedPage(id, '新页面'))
       s.activePageId = id
       s.selectedIds = []
       s.selectedElements = {}
@@ -362,10 +398,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (!source) return
       const newId = 'page-' + Date.now()
       const idx = s.pages.findIndex(p => p.id === id)
+      const schema = source.schema ? clonePageSchema(source.schema, {
+        id: newId,
+        title: source.title + ' 副本',
+      }) : null
       s.pages.splice(idx + 1, 0, {
         id: newId,
         title: source.title + ' 副本',
         html: source.html,
+        schema,
       })
       s.activePageId = newId
       s.selectedIds = []
@@ -406,6 +447,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
             await api.pages.update(state.projectId, pageId, {
               html: page.html,
               title: page.title,
+              schema: page.schema ?? undefined,
             })
           }
         }
@@ -420,16 +462,46 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     panToElement: (rect) => {
       const s = get()
       const zoom = s.viewport.zoom
-      const canvasEl = document.querySelector('[data-canvas-bg]')
+      const canvasEl = document.querySelector('[data-canvas-bg]') as HTMLElement | null
       if (!canvasEl) return
       const canvasBounds = canvasEl.getBoundingClientRect()
-      const deviceWidth = s.customWidth ?? DEVICE_WIDTHS[s.device]
-      const elCenterX = rect.x + rect.width / 2
-      const elCenterY = rect.y + rect.height / 2
-      const BROWSER_BAR_H = 38
-      const newX = -(elCenterX - deviceWidth / 2) * zoom
-      const newY = canvasBounds.height / 2 - 32 - (BROWSER_BAR_H + elCenterY) * zoom
-      set((s) => { s.viewport.x = newX; s.viewport.y = newY })
+
+      const iframeEl = canvasEl.querySelector('iframe')
+      if (!iframeEl) return
+      const iframeRect = iframeEl.getBoundingClientRect()
+
+      const elLeft = iframeRect.left + rect.x * zoom
+      const elTop = iframeRect.top + rect.y * zoom
+      const elRight = elLeft + rect.width * zoom
+      const elBottom = elTop + rect.height * zoom
+
+      const PAD = 50
+      const vLeft = canvasBounds.left + PAD
+      const vTop = canvasBounds.top + PAD
+      const vRight = canvasBounds.right - PAD
+      const vBottom = canvasBounds.bottom - PAD
+
+      if (elLeft >= vLeft && elTop >= vTop && elRight <= vRight && elBottom <= vBottom) {
+        return
+      }
+
+      const isCompletelyOutside =
+        elRight < vLeft || elLeft > vRight || elBottom < vTop || elTop > vBottom
+
+      if (isCompletelyOutside || (elRight - elLeft) > (vRight - vLeft) || (elBottom - elTop) > (vBottom - vTop)) {
+        const dx = (vLeft + vRight) / 2 - (elLeft + elRight) / 2
+        const dy = vTop - elTop
+        set((s) => { s.viewport.x += dx; s.viewport.y += dy })
+        return
+      }
+
+      let dx = 0, dy = 0
+      if (elLeft < vLeft) dx = vLeft - elLeft
+      else if (elRight > vRight) dx = vRight - elRight
+      if (elTop < vTop) dy = vTop - elTop
+      else if (elBottom > vBottom) dy = vBottom - elBottom
+
+      set((s) => { s.viewport.x += dx; s.viewport.y += dy })
     },
   }))
 )

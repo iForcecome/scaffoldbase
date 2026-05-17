@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditorStore, setBridgeSender, syncHTMLFromIframe } from '../stores/editor-store'
+import { useEditorStore, setBridgeSender, syncHTMLFromIframe, consumePendingReveal } from '../stores/editor-store'
+import { deriveSpecPath } from '../utils/spec-path'
 
 function handleIframeWheel(data: Record<string, unknown>) {
   const store = useEditorStore.getState()
@@ -50,7 +51,25 @@ export function useBridge() {
         break
       case 'element-click': {
         const multi = !!(data.shiftKey || data.metaKey || data.ctrlKey)
-        selectElement(data.id as string, data.rect as any, data.label as string, multi)
+        const activePageId = useEditorStore.getState().activePageId
+        const sfId = data.sfId as string | null
+        const component = data.component as string | null
+        const role = data.role as string | null
+        const variant = data.variant as string | null
+        const specPath = deriveSpecPath(activePageId, {
+          sfId,
+          component,
+          role,
+          label: data.label as string | null,
+          specPath: data.specPath as string | null,
+        })
+        selectElement(data.id as string, data.rect as any, data.label as string, multi, {
+          sfId,
+          component,
+          role,
+          variant,
+          specPath,
+        })
         if (data.id) {
           sendToIframe({ type: 'get-computed-style', id: data.id })
         }
@@ -65,6 +84,10 @@ export function useBridge() {
         setSelectedStyles(camel)
         if (data.rect && data.id) {
           updateSelectedRect(data.id as string, data.rect as any)
+          const revealId = consumePendingReveal()
+          if (revealId === data.id) {
+            useEditorStore.getState().panToElement(data.rect as any)
+          }
         }
         break
       }
@@ -88,6 +111,14 @@ export function useBridge() {
         const store = useEditorStore.getState()
         if (!store.selectedIds.includes(data.id as string)) {
           hoverElement(data.id, data.rect)
+        }
+        break
+      }
+      case 'element-rect': {
+        const store = useEditorStore.getState()
+        const id = data.id as string
+        if (store.hoveredId === id && data.rect) {
+          hoverElement(id, data.rect as any)
         }
         break
       }

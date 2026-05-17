@@ -3,7 +3,7 @@ import { db } from '../db/client.js'
 import { specs } from '../db/schema.js'
 import { eq, desc } from 'drizzle-orm'
 
-type Page = { id: string; title: string; html: string }
+type Page = { id: string; title: string; html: string; schema?: unknown }
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.get('/projects/:id/pages', {
@@ -51,7 +51,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const { id, pageId } = request.params as { id: string; pageId: string }
-    const body = request.body as { title?: string; html: string }
+    const body = request.body as { title?: string; html: string; schema?: unknown }
 
     const spec = await db.query.specs.findFirst({
       where: eq(specs.projectId, id),
@@ -67,10 +67,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const pageIndex = pages.findIndex((p) => p.id === pageId)
 
     if (pageIndex === -1) {
-      pages.push({ id: pageId, title: body.title ?? 'Untitled', html: body.html })
+      pages.push({ id: pageId, title: body.title ?? 'Untitled', html: body.html, schema: body.schema })
     } else {
       if (body.title) pages[pageIndex].title = body.title
       pages[pageIndex].html = body.html
+      if ('schema' in body) pages[pageIndex].schema = body.schema
     }
 
     const [updated] = await db.update(specs)

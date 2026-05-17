@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
 import { useEditorStore, sendBridgeMessage, requestFromBridge, suppressNextIframeReload } from './editor-store'
+import type { Operation } from '../operations/types'
+import { validateOperationResponse } from '../operations/validate-operation'
 
 export interface ChatMessage {
   id: string
@@ -26,14 +28,15 @@ interface ChatActions {
 }
 
 function stripBridgeAttrs(html: string): string {
-  return html.replace(/\s*data-sf-id="[^"]*"/g, '')
+  return html.replace(/\s*data-sf-id="sf-\d+"/g, '')
 }
 
 interface SSEEvent {
   type: 'chunk' | 'applied' | 'done' | 'error'
   content?: string
   html?: string
-  mode?: 'diff' | 'fragment'
+  operations?: Operation[]
+  mode?: 'diff' | 'fragment' | 'operations'
   message?: string
 }
 
@@ -105,16 +108,37 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
       let elementHtml: string | undefined
       let elementId: string | undefined
       let fragmentId: string | undefined
+      let selectedNode: Record<string, unknown> | undefined
 
       if (selectedId) {
         try {
-          const resp = await requestFromBridge<{ html: string; tag: string; label: string }>(
+          const resp = await requestFromBridge<{
+            html: string
+            tag: string
+            label: string
+            sfId?: string | null
+            component?: string | null
+            role?: string | null
+            variant?: string | null
+            specPath?: string | null
+          }>(
             { type: 'get-element-html', id: selectedId },
             'element-html',
           )
           elementHtml = stripBridgeAttrs(resp.html)
           elementId = selectedId
           fragmentId = selectedId
+          const selectedElement = editorStore.selectedElements[selectedId]
+          selectedNode = {
+            id: resp.sfId || selectedElement?.sfId || selectedId,
+            runtimeId: selectedId,
+            label: resp.label || selectedElement?.label || selectedId,
+            tag: resp.tag,
+            component: resp.component || selectedElement?.component || null,
+            role: resp.role || selectedElement?.role || null,
+            variant: resp.variant || selectedElement?.variant || null,
+            specPath: resp.specPath || selectedElement?.specPath || null,
+          }
         } catch {
           // fall through to full-page mode
         }
@@ -122,7 +146,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
 
       const response = await api.chat.stream(
         editorStore.projectId,
-        { message: text, pageId: page.id, elementHtml, elementId },
+        { message: text, pageId: page.id, elementHtml, elementId, selectedNode },
         abortController.signal,
       )
 
@@ -142,6 +166,32 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
             break
 
           case 'applied':
+            if (event.operations) {
+              const validation = validateOperationResponse({ operations: event.operations })
+              if (!validation.ok || !validation.value) {
+                throw new Error(`Operation validation failed: ${validation.errors.join('; ')}`)
+              }
+              editorStore.pushUndo()
+              const result = await requestFromBridge<{ ok: boolean; errors?: string[] }>(
+                { type: 'execute-operations', operations: validation.value.operations },
+                'operation-result',
+              )
+              if (!result.ok) {
+                throw new Error(`Operation execution failed: ${(result.errors ?? []).join('; ')}`)
+              }
+              try {
+                const pageResp = await requestFromBridge<{ html: string }>(
+                  { type: 'get-page-html' },
+                  'page-html',
+                )
+                suppressNextIframeReload()
+                editorStore.updatePageHTML(page.id, pageResp.html)
+              } catch {
+                // visual update already applied via bridge
+              }
+              htmlApplied = true
+              break
+            }
             if (event.html) {
               editorStore.pushUndo()
               if (event.mode === 'fragment' && fragmentId) {

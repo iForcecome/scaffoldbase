@@ -6,6 +6,7 @@ import { projectRoutes } from './routes/projects.js'
 import { pageRoutes } from './routes/pages.js'
 import { chatRoutes } from './routes/chat.js'
 import { designTokenRoutes } from './routes/design-tokens.js'
+import { exportRoutes } from './routes/exports.js'
 
 export async function buildApp() {
   const app = Fastify({ logger: true })
@@ -28,6 +29,7 @@ export async function buildApp() {
   await app.register(pageRoutes, { prefix: '/api' })
   await app.register(chatRoutes, { prefix: '/api' })
   await app.register(designTokenRoutes, { prefix: '/api' })
+  await app.register(exportRoutes, { prefix: '/api' })
 
   app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
 

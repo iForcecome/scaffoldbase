@@ -11,6 +11,7 @@ export function RightPanel() {
   const isOpen = useEditorStore(s => s.rightPanelOpen)
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectedElements = useEditorStore(s => s.selectedElements)
+  const activePageId = useEditorStore(s => s.activePageId)
   if (!isOpen) return null
 
   const primaryId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
@@ -43,7 +44,7 @@ export function RightPanel() {
           <AppearanceSection />
           <TypographySection />
           <TokenSection />
-          <SpecBindingSection elementId={primaryId} label={displayLabel} />
+          <SpecBindingSection pageId={activePageId} elementId={primaryId} element={primaryEl} label={displayLabel} />
         </>
       )}
     </aside>

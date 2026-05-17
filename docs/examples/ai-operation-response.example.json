@@ -1,0 +1,22 @@
+{
+  "operations": [
+    {
+      "type": "setVariant",
+      "target": "orders.list.filters",
+      "variant": "compact"
+    },
+    {
+      "type": "replaceText",
+      "target": "orders.list.header.title",
+      "text": "订单中心"
+    },
+    {
+      "type": "updateStyle",
+      "target": "orders.list.table",
+      "styles": {
+        "fontSize": "14px",
+        "borderColor": "var(--sf-color-surface-3)"
+      }
+    }
+  ]
+}

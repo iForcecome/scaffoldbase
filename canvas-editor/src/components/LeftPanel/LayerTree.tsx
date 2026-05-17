@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useEditorStore, sendBridgeMessage, type DOMNode } from '../../stores/editor-store'
+import { useEditorStore, sendBridgeMessage, setPendingReveal, type DOMNode } from '../../stores/editor-store'
 
 function ContainerIcon({ className }: { className?: string }) {
   return (
@@ -65,12 +65,16 @@ function getNodeIcon(tag: string, isSelected: boolean, hasChildren: boolean) {
   return <ContainerIcon className={isSelected ? 'w-3 h-3 text-brand-500' : 'w-3 h-3 text-ink-3'} />
 }
 
-function getTagBadge(tag: string, isSelected: boolean, hasChildren: boolean) {
+function getTagBadge(node: DOMNode, isSelected: boolean, hasChildren: boolean) {
   if (isSelected) {
     return <span className="ml-auto spec-mini-tag bg-brand-50 text-brand-600">选中</span>
   }
+  if (node.component) {
+    return <span className="ml-auto spec-mini-tag bg-purple-50 text-purple-600 truncate max-w-16">{node.component}</span>
+  }
   if (!hasChildren) return null
 
+  const tag = node.tag
   const data = ['table', 'tbody', 'thead', 'ul', 'ol']
   if (data.includes(tag)) {
     return <span className="ml-auto spec-mini-tag bg-emerald-50 text-emerald-600">数据</span>
@@ -88,12 +92,12 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectElement = useEditorStore(s => s.selectElement)
-  const panToElement = useEditorStore(s => s.panToElement)
   const hoverElement = useEditorStore(s => s.hoverElement)
   const rowRef = useRef<HTMLDivElement>(null)
 
   const hasChildren = node.children.length > 0
   const isSelected = selectedIds.includes(node.id)
+  const displayLabel = node.semanticLabel || node.label
 
   const indentMap: Record<number, string> = {
     1: 'pl-5',
@@ -154,10 +158,15 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
           isSelected ? 'active' : ''
         } ${dropPosition === 'above' ? 'border-t-2 border-brand-400' : ''} ${dropPosition === 'below' ? 'border-b-2 border-brand-400' : ''}`}
         onClick={(e) => {
-          selectElement(node.id, node.rect, node.label, e.shiftKey || e.metaKey || e.ctrlKey)
-          if (!e.shiftKey && !e.metaKey && !e.ctrlKey && node.rect) panToElement(node.rect)
+          const multi = e.shiftKey || e.metaKey || e.ctrlKey
+          selectElement(node.id, null, node.label, multi)
+          if (!multi) setPendingReveal(node.id)
+          sendBridgeMessage({ type: 'get-computed-style', id: node.id })
         }}
-        onMouseEnter={() => hoverElement(node.id, node.rect)}
+        onMouseEnter={() => {
+          hoverElement(node.id, null)
+          sendBridgeMessage({ type: 'get-rect', id: node.id })
+        }}
         onMouseLeave={() => hoverElement(null)}
       >
         {hasChildren ? (
@@ -173,14 +182,23 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
 
         {getNodeIcon(node.tag, isSelected, hasChildren)}
 
-        <span className={
-          isSelected ? 'text-brand-600 font-medium' :
-          hasChildren ? 'text-ink-1' : 'text-ink-2'
-        }>
-          {node.label}
-        </span>
+        <div className="min-w-0 flex flex-col">
+          <span className={
+            `truncate ${
+              isSelected ? 'text-brand-600 font-medium' :
+              hasChildren ? 'text-ink-1' : 'text-ink-2'
+            }`
+          }>
+            {displayLabel}
+          </span>
+          {(node.role || node.sfId) && (
+            <span className="text-[10px] text-ink-4 truncate leading-3">
+              {node.role || node.sfId}
+            </span>
+          )}
+        </div>
 
-        {getTagBadge(node.tag, isSelected, hasChildren)}
+        {getTagBadge(node, isSelected, hasChildren)}
       </div>
 
       {expanded && hasChildren && node.children.map(child => (

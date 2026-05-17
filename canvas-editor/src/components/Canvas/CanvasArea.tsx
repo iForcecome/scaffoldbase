@@ -13,7 +13,6 @@ import { useBridge } from '../../hooks/use-bridge'
 
 export function CanvasArea() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const viewport = useEditorStore(s => s.viewport)
   const setViewport = useEditorStore(s => s.setViewport)
   const zoomTo = useEditorStore(s => s.zoomTo)
   const activePageId = useEditorStore(s => s.activePageId)

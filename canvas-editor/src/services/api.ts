@@ -1,4 +1,24 @@
+import type { PageSchema } from '../page-schema/types'
+
 const BASE = '/api'
+
+async function download(projectId: string, type: 'spec_json' | 'html_prd', filename: string): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/exports/${type}`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`API ${res.status}: ${body}`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -27,6 +47,7 @@ export interface Page {
   id: string
   title: string
   html: string
+  schema?: PageSchema | null
 }
 
 export const api = {
@@ -43,7 +64,7 @@ export const api = {
 
   pages: {
     list: (projectId: string) => request<Page[]>(`/projects/${projectId}/pages`),
-    update: (projectId: string, pageId: string, data: { title?: string; html: string }) =>
+    update: (projectId: string, pageId: string, data: { title?: string; html: string; schema?: PageSchema | null }) =>
       request<Page[]>(`/projects/${projectId}/pages/${pageId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -51,7 +72,13 @@ export const api = {
   },
 
   chat: {
-    stream: (projectId: string, body: { message: string; pageId?: string; elementId?: string; elementHtml?: string }, signal?: AbortSignal) =>
+    stream: (projectId: string, body: {
+      message: string
+      pageId?: string
+      elementId?: string
+      elementHtml?: string
+      selectedNode?: unknown
+    }, signal?: AbortSignal) =>
       fetch(`${BASE}/projects/${projectId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,5 +89,12 @@ export const api = {
 
   designTokens: {
     list: () => request<unknown[]>('/design-tokens'),
+  },
+
+  exports: {
+    downloadSpecJson: (projectId: string, projectName = 'specflow') =>
+      download(projectId, 'spec_json', `${projectName}-spec.json`),
+    downloadHtmlPrd: (projectId: string, projectName = 'specflow') =>
+      download(projectId, 'html_prd', `${projectName}-html-prd.html`),
   },
 }

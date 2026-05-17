@@ -25,7 +25,69 @@ export function getBridgeScript(): string {
     return t.slice(0, 24);
   }
 
+  function inferSemantic(el) {
+    var tag = el.tagName.toLowerCase();
+    var text = (el.textContent || '').trim();
+
+    if (tag === 'header') return { component: 'PageHeader', role: 'header', label: '页面标题区' };
+    if (tag === 'nav') return { component: 'Navigation', role: 'navigation', label: '导航菜单' };
+    if (tag === 'form') return { component: 'FormSection', role: 'form', label: '表单区' };
+    if (tag === 'table') return { component: 'DataTable', role: 'table', label: '数据表格' };
+    if (tag === 'button') return { component: 'Button', role: 'action', label: getDirectText(el) || '按钮' };
+
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3') {
+      return { component: null, role: 'title', label: getDirectText(el) || '标题' };
+    }
+
+    if (tag === 'p') {
+      return { component: null, role: 'description', label: getDirectText(el) || '描述' };
+    }
+
+    if (tag === 'div' || tag === 'section' || tag === 'main' || tag === 'article') {
+      if (el.querySelector(':scope > table') || el.querySelector('table')) {
+        return { component: 'DataTable', role: 'table', label: '数据表格' };
+      }
+
+      var hasField = !!el.querySelector('input, select, textarea');
+      var buttons = el.querySelectorAll('button');
+      var hasSearchText = text.indexOf('搜索') >= 0 || text.indexOf('筛选') >= 0 || text.indexOf('重置') >= 0 || text.indexOf('状态') >= 0 || text.indexOf('日期') >= 0;
+      if ((hasField && buttons.length > 0) || (hasSearchText && buttons.length >= 1)) {
+        return { component: 'FilterBar', role: 'filters', label: '筛选区' };
+      }
+
+      var directTitle = el.querySelector(':scope > h1, :scope > h2, :scope > h3');
+      if (directTitle && buttons.length > 0) {
+        return { component: 'PageHeader', role: 'header', label: '页面标题区' };
+      }
+
+      if (el.querySelector('label') && el.querySelector('input, select, textarea')) {
+        return { component: 'FormSection', role: 'form', label: '表单区' };
+      }
+
+      if ((text.indexOf('暂无') >= 0 || text.indexOf('没有') >= 0) && buttons.length <= 1) {
+        return { component: 'EmptyState', role: 'empty-state', label: '空状态' };
+      }
+    }
+
+    return { component: null, role: null, label: null };
+  }
+
+  function getSemanticMeta(el) {
+    var inferred = inferSemantic(el);
+    return {
+      sfId: el.getAttribute(BRIDGE_ATTR) || null,
+      semanticLabel: el.getAttribute('data-sf-label') || inferred.label || null,
+      component: el.getAttribute('data-sf-component') || inferred.component || null,
+      role: el.getAttribute('data-sf-role') || inferred.role || null,
+      variant: el.getAttribute('data-sf-variant') || null,
+      specPath: el.getAttribute('data-sf-spec') || null
+    };
+  }
+
   function inferLabel(el) {
+    var semanticLabel = el.getAttribute('data-sf-label');
+    if (semanticLabel) return semanticLabel;
+
     var tag = el.tagName.toLowerCase();
 
     if (tag === 'body') return '页面根';
@@ -120,28 +182,54 @@ export function getBridgeScript(): string {
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   }
 
+  function isDecorativeElement(el) {
+    var tag = el.tagName.toLowerCase();
+    if (tag !== 'div' && tag !== 'span') return false;
+    if ((el.textContent || '').trim()) return false;
+    if (el.querySelector('img, svg, canvas, input, select, textarea, button, a')) return false;
+
+    var style = window.getComputedStyle(el);
+    var className = el.getAttribute('class') || '';
+    var isOverlay = style.position === 'absolute' ||
+      style.position === 'fixed' ||
+      className.indexOf('absolute') >= 0 ||
+      className.indexOf('inset-0') >= 0;
+    var isFaint = parseFloat(style.opacity || '1') <= 0.25 || className.indexOf('opacity-') >= 0;
+    return isOverlay && isFaint;
+  }
+
+  function resolveSelectableTarget(el) {
+    var target = el.closest('[' + BRIDGE_ATTR + ']');
+    while (target && target.parentElement && target.tagName.toLowerCase() !== 'body') {
+      if (!isDecorativeElement(target)) return target;
+      target = target.parentElement.closest('[' + BRIDGE_ATTR + ']') || target.parentElement;
+    }
+    return target;
+  }
+
   function parseDOMTree(el, depth) {
     if (depth > 10) return null;
     var tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta' || tag === 'br' || tag === 'hr') return null;
+    if (isDecorativeElement(el)) return null;
     var rect = el.getBoundingClientRect();
     if (rect.width < 2 && rect.height < 2) return null;
     if (tag === 'svg' || tag === 'path' || tag === 'circle' || tag === 'line' || tag === 'polyline' || tag === 'polygon' || tag === 'rect' || tag === 'g') {
       if (tag !== 'svg') return null;
-      return { id: el.getAttribute(BRIDGE_ATTR) || '', tag: tag, label: 'Icon', rect: rectToObj(rect), children: [] };
+      return Object.assign({ id: el.getAttribute(BRIDGE_ATTR) || '', tag: tag, label: inferLabel(el), rect: rectToObj(rect), children: [] }, getSemanticMeta(el));
     }
     var children = [];
     for (var i = 0; i < el.children.length; i++) {
       var node = parseDOMTree(el.children[i], depth + 1);
       if (node) children.push(node);
     }
-    return {
+    return Object.assign({
       id: el.getAttribute(BRIDGE_ATTR) || '',
       tag: tag,
       label: inferLabel(el),
       rect: rectToObj(rect),
       children: children
-    };
+    }, getSemanticMeta(el));
   }
 
   function pruneTree(nodes, depth) {
@@ -202,6 +290,71 @@ export function getBridgeScript(): string {
     return document.querySelector('[' + BRIDGE_ATTR + '="' + id + '"]');
   }
 
+  function toKebab(value) {
+    return String(value || '')
+      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+      .replace(/[\s_]+/g, '-')
+      .toLowerCase();
+  }
+
+  function applyStyles(el, styles) {
+    var entries = Object.entries(styles || {});
+    for (var i = 0; i < entries.length; i++) {
+      var prop = toKebab(entries[i][0]);
+      var value = entries[i][1];
+      el.style.setProperty(prop, String(value));
+    }
+  }
+
+  function applyOperation(op) {
+    if (!op || !op.type) throw new Error('Invalid operation');
+
+    if (op.type === 'replaceText') {
+      var textEl = getElementById(op.target);
+      if (!textEl) throw new Error('Target not found: ' + op.target);
+      textEl.textContent = String(op.text || '');
+      return;
+    }
+
+    if (op.type === 'updateStyle') {
+      var styleEl = getElementById(op.target);
+      if (!styleEl) throw new Error('Target not found: ' + op.target);
+      applyStyles(styleEl, op.styles);
+      return;
+    }
+
+    if (op.type === 'replaceClass') {
+      var classEl = getElementById(op.target);
+      if (!classEl) throw new Error('Target not found: ' + op.target);
+      classEl.className = String(op.className || '');
+      return;
+    }
+
+    if (op.type === 'setVariant') {
+      var variantEl = getElementById(op.target);
+      if (!variantEl) throw new Error('Target not found: ' + op.target);
+      var inferred = inferSemantic(variantEl);
+      var component = variantEl.getAttribute('data-sf-component') || inferred.component;
+      if (!component) throw new Error('Target has no data-sf-component: ' + op.target);
+      var baseClass = 'sf-' + toKebab(component);
+      var nextVariant = String(op.variant || 'default');
+      var nextVariantClass = baseClass + '--' + toKebab(nextVariant);
+      var classes = Array.prototype.slice.call(variantEl.classList).filter(function(cls) {
+        return cls.indexOf(baseClass + '--') !== 0;
+      });
+      if (classes.indexOf(baseClass) < 0) classes.push(baseClass);
+      classes.push(nextVariantClass);
+      variantEl.className = classes.join(' ');
+      variantEl.setAttribute('data-sf-component', component);
+      if (!variantEl.getAttribute('data-sf-role') && inferred.role) variantEl.setAttribute('data-sf-role', inferred.role);
+      if (!variantEl.getAttribute('data-sf-label') && inferred.label) variantEl.setAttribute('data-sf-label', inferred.label);
+      variantEl.setAttribute('data-sf-variant', nextVariant);
+      return;
+    }
+
+    throw new Error('Unsupported operation: ' + op.type);
+  }
+
   document.addEventListener('click', function(e) {
     if (mode === 'preview') {
       var link = e.target.closest('a[href]');
@@ -218,20 +371,20 @@ export function getBridgeScript(): string {
     }
     e.preventDefault();
     e.stopPropagation();
-    var target = e.target.closest('[' + BRIDGE_ATTR + ']');
+    var target = resolveSelectableTarget(e.target);
     if (target) {
       var id = target.getAttribute(BRIDGE_ATTR);
       var rect = target.getBoundingClientRect();
-      parent.postMessage({
+      parent.postMessage(Object.assign({
         type: 'element-click', id: id, rect: rectToObj(rect), label: inferLabel(target),
         shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey
-      }, '*');
+      }, getSemanticMeta(target)), '*');
     }
   }, true);
 
   document.addEventListener('mousemove', function(e) {
     if (mode === 'preview') return;
-    var target = e.target.closest('[' + BRIDGE_ATTR + ']');
+    var target = resolveSelectableTarget(e.target);
     if (target) {
       var id = target.getAttribute(BRIDGE_ATTR);
       var rect = target.getBoundingClientRect();
@@ -277,6 +430,20 @@ export function getBridgeScript(): string {
         }
         break;
       }
+      case 'execute-operations': {
+        var operations = Array.isArray(data.operations) ? data.operations : [];
+        var errors = [];
+        for (var opIndex = 0; opIndex < operations.length; opIndex++) {
+          try {
+            applyOperation(operations[opIndex]);
+          } catch (err) {
+            errors.push(err && err.message ? err.message : String(err));
+          }
+        }
+        sendTree();
+        parent.postMessage({ type: 'operation-result', ok: errors.length === 0, errors: errors }, '*');
+        break;
+      }
       case 'update-text': {
         var el2 = getElementById(data.id);
         if (el2) { el2.textContent = data.text; sendTree(); }
@@ -300,14 +467,14 @@ export function getBridgeScript(): string {
             styles[props[i]] = cs.getPropertyValue(props[i]);
           }
           var rect5 = el5.getBoundingClientRect();
-          parent.postMessage({ type: 'computed-style', id: data.id, styles: styles, rect: rectToObj(rect5), label: inferLabel(el5) }, '*');
+          parent.postMessage(Object.assign({ type: 'computed-style', id: data.id, styles: styles, rect: rectToObj(rect5), label: inferLabel(el5) }, getSemanticMeta(el5)), '*');
         }
         break;
       }
       case 'get-element-html': {
         var elH = getElementById(data.id);
         if (elH) {
-          parent.postMessage({ type: 'element-html', id: data.id, html: elH.outerHTML, tag: elH.tagName.toLowerCase(), label: inferLabel(elH) }, '*');
+          parent.postMessage(Object.assign({ type: 'element-html', id: data.id, html: elH.outerHTML, tag: elH.tagName.toLowerCase(), label: inferLabel(elH) }, getSemanticMeta(elH)), '*');
         }
         break;
       }
@@ -331,7 +498,8 @@ export function getBridgeScript(): string {
       case 'get-page-html': {
         var clone = document.documentElement.cloneNode(true);
         clone.querySelectorAll('[' + BRIDGE_ATTR + ']').forEach(function(n) {
-          n.removeAttribute(BRIDGE_ATTR);
+          var id = n.getAttribute(BRIDGE_ATTR);
+          if (id && /^sf-\\d+$/.test(id)) n.removeAttribute(BRIDGE_ATTR);
         });
         var bridgeScripts = clone.querySelectorAll('script');
         bridgeScripts.forEach(function(s) {
@@ -398,11 +566,10 @@ export function getBridgeScript(): string {
   function init() {
     if (document.body) assignIds(document.body);
     parent.postMessage({ type: 'ready' }, '*');
-    setTimeout(sendTree, 300);
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(init, 50);
+    requestAnimationFrame(init);
   } else {
     window.addEventListener('load', init);
   }
