@@ -90,6 +90,7 @@ interface EditorActions {
   isDirty: () => boolean
   save: () => Promise<void>
   setEditingText: (id: string | null) => void
+  panToElement: (rect: Rect) => void
 }
 
 let _bridgeSender: ((msg: Record<string, unknown>) => void) | null = null
@@ -415,6 +416,21 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     setEditingText: (id) => set((s) => { s.editingTextId = id }),
+
+    panToElement: (rect) => {
+      const s = get()
+      const zoom = s.viewport.zoom
+      const canvasEl = document.querySelector('[data-canvas-bg]')
+      if (!canvasEl) return
+      const canvasBounds = canvasEl.getBoundingClientRect()
+      const deviceWidth = s.customWidth ?? DEVICE_WIDTHS[s.device]
+      const elCenterX = rect.x + rect.width / 2
+      const elCenterY = rect.y + rect.height / 2
+      const BROWSER_BAR_H = 38
+      const newX = -(elCenterX - deviceWidth / 2) * zoom
+      const newY = canvasBounds.height / 2 - 32 - (BROWSER_BAR_H + elCenterY) * zoom
+      set((s) => { s.viewport.x = newX; s.viewport.y = newY })
+    },
   }))
 )
 

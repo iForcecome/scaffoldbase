@@ -373,6 +373,17 @@ export function getBridgeScript(): string {
         }
         break;
       }
+      case 'reorder-element': {
+        var elReorder = getElementById(data.id);
+        var targetParent = data.parentId ? getElementById(data.parentId) : document.body;
+        if (elReorder && targetParent && elReorder.parentNode === targetParent) {
+          var refEl = data.insertBeforeId ? getElementById(data.insertBeforeId) : null;
+          targetParent.insertBefore(elReorder, refEl);
+          sendTree();
+          parent.postMessage({ type: 'reorder-done' }, '*');
+        }
+        break;
+      }
       case 'request-tree': {
         sendTree();
         break;

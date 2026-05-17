@@ -1,0 +1,1 @@
+{"root":["./src/app.ts","./src/env.ts","./src/index.ts","./src/db/client.ts","./src/db/schema.ts","./src/routes/chat.ts","./src/routes/design-tokens.ts","./src/routes/pages.ts","./src/routes/projects.ts","./src/services/ai.ts"],"version":"5.9.3"}

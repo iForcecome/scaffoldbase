@@ -81,6 +81,9 @@ export function useBridge() {
           selectElement(data.id as string, data.rect as any)
         }
         break
+      case 'reorder-done':
+        syncHTMLFromIframe()
+        break
       case 'element-hover': {
         const store = useEditorStore.getState()
         if (!store.selectedIds.includes(data.id as string)) {

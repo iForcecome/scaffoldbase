@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useEditorStore, type DOMNode } from '../../stores/editor-store'
+import { useState, useRef } from 'react'
+import { useEditorStore, sendBridgeMessage, type DOMNode } from '../../stores/editor-store'
 
 function ContainerIcon({ className }: { className?: string }) {
   return (
@@ -83,11 +83,14 @@ function getTagBadge(tag: string, isSelected: boolean, hasChildren: boolean) {
   return null
 }
 
-function LayerNode({ node, depth }: { node: DOMNode; depth: number }) {
+function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth: number; parentId: string | null; siblingIds: string[] }) {
   const [expanded, setExpanded] = useState(depth < 3)
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectElement = useEditorStore(s => s.selectElement)
+  const panToElement = useEditorStore(s => s.panToElement)
   const hoverElement = useEditorStore(s => s.hoverElement)
+  const rowRef = useRef<HTMLDivElement>(null)
 
   const hasChildren = node.children.length > 0
   const isSelected = selectedIds.includes(node.id)
@@ -101,13 +104,59 @@ function LayerNode({ node, depth }: { node: DOMNode; depth: number }) {
   }
   const plClass = indentMap[depth] || 'pl-24'
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ id: node.id, parentId }))
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const rect = rowRef.current?.getBoundingClientRect()
+    if (rect) {
+      const midY = rect.top + rect.height / 2
+      setDropPosition(e.clientY < midY ? 'above' : 'below')
+    }
+  }
+
+  const handleDragLeave = () => setDropPosition(null)
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDropPosition(null)
+    try {
+      const source = JSON.parse(e.dataTransfer.getData('text/plain'))
+      if (source.id === node.id) return
+      if (source.parentId !== parentId) return
+
+      const myIndex = siblingIds.indexOf(node.id)
+      const insertIndex = dropPosition === 'below' ? myIndex + 1 : myIndex
+      const insertBeforeId = siblingIds[insertIndex] === source.id
+        ? siblingIds[insertIndex + 1] || null
+        : siblingIds[insertIndex] || null
+
+      if (insertBeforeId === source.id) return
+
+      sendBridgeMessage({ type: 'reorder-element', id: source.id, parentId, insertBeforeId })
+    } catch { /* ignore */ }
+  }
+
   return (
     <>
       <div
+        ref={rowRef}
+        draggable={!!parentId}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={`layer-item px-2 py-1.5 ${plClass} flex items-center gap-1.5 cursor-pointer ${
           isSelected ? 'active' : ''
-        }`}
-        onClick={(e) => selectElement(node.id, node.rect, node.label, e.shiftKey || e.metaKey || e.ctrlKey)}
+        } ${dropPosition === 'above' ? 'border-t-2 border-brand-400' : ''} ${dropPosition === 'below' ? 'border-b-2 border-brand-400' : ''}`}
+        onClick={(e) => {
+          selectElement(node.id, node.rect, node.label, e.shiftKey || e.metaKey || e.ctrlKey)
+          if (!e.shiftKey && !e.metaKey && !e.ctrlKey && node.rect) panToElement(node.rect)
+        }}
         onMouseEnter={() => hoverElement(node.id, node.rect)}
         onMouseLeave={() => hoverElement(null)}
       >
@@ -135,7 +184,7 @@ function LayerNode({ node, depth }: { node: DOMNode; depth: number }) {
       </div>
 
       {expanded && hasChildren && node.children.map(child => (
-        <LayerNode key={child.id} node={child} depth={depth + 1} />
+        <LayerNode key={child.id} node={child} depth={depth + 1} parentId={node.id} siblingIds={node.children.map(c => c.id)} />
       ))}
     </>
   )
@@ -158,7 +207,7 @@ export function LayerTree() {
         </div>
       ) : (
         domTree.map(node => (
-          <LayerNode key={node.id} node={node} depth={1} />
+          <LayerNode key={node.id} node={node} depth={1} parentId={null} siblingIds={domTree.map(n => n.id)} />
         ))
       )}
     </div>
