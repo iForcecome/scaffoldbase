@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
+import { installStoreCoordinators } from './stores/coordinate'
+
+installStoreCoordinators()
 
 document.addEventListener('wheel', (e) => {
   if (e.ctrlKey || e.metaKey) e.preventDefault()

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { sendBridgeMessage } from '../bridge/host'
-import { useSelectionStore } from './selection-store'
 
 export type Tool = 'select' | 'zoom' | 'marquee' | 'text' | 'insert' | 'preview'
 
@@ -18,6 +17,8 @@ interface ToolActions {
   setEditingText: (id: string | null) => void
 }
 
+// Selection-clearing when entering preview lives in stores/coordinate.ts as a
+// subscription, so tool-store stays pure data + bridge mode hand-off.
 export const useToolStore = create<ToolState & ToolActions>()((set, get) => ({
   activeTool: 'select',
   leftPanelOpen: true,
@@ -28,10 +29,6 @@ export const useToolStore = create<ToolState & ToolActions>()((set, get) => ({
     const wasPreview = get().activeTool === 'preview'
     const willPreview = t === 'preview'
     set({ activeTool: t })
-    if (willPreview) {
-      useSelectionStore.getState().clearSelection()
-      useSelectionStore.getState().hoverElement(null)
-    }
     if (wasPreview !== willPreview) {
       sendBridgeMessage({ type: 'set-mode', mode: willPreview ? 'preview' : 'design' })
     }

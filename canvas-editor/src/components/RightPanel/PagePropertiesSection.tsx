@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Download, FileText, RefreshCw } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
 import { useViewportStore } from '../../stores/viewport-store'
 import { api } from '../../services/api'
@@ -10,7 +10,6 @@ export function PagePropertiesSection() {
   const activePageId = useEditorStore(s => s.activePageId)
   const pages = useEditorStore(s => s.pages)
   const renamePage = useEditorStore(s => s.renamePage)
-  const upgradePageToSchema = useEditorStore(s => s.upgradePageToSchema)
   const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
   const deviceWidth = useViewportStore(s => s.getDeviceWidth())
   const setCustomWidth = useViewportStore(s => s.setCustomWidth)
@@ -104,11 +103,6 @@ export function PagePropertiesSection() {
     }
   }
 
-  const handleUpgradeToSchema = () => {
-    if (!page) return
-    upgradePageToSchema(page.id)
-  }
-
   const padLabels = ['上', '右', '下', '左']
 
   return (
@@ -116,15 +110,6 @@ export function PagePropertiesSection() {
       {/* Page Title */}
       <div className="p-3 border-b border-surface-3">
         <div className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">页面</div>
-        {!page?.schema && (
-          <button
-            className="mb-3 w-full h-8 rounded-md border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700 flex items-center justify-center gap-1.5 hover:bg-amber-100"
-            onClick={handleUpgradeToSchema}
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            从 DOM 重建 Schema
-          </button>
-        )}
         <div>
           <label className="text-[11px] text-ink-3 mb-1 block">页面标题</label>
           <input

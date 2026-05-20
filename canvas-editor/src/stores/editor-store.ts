@@ -43,7 +43,6 @@ interface EditorActions {
   deletePage: (id: string) => void
   duplicatePage: (id: string) => void
   renamePage: (id: string, title: string) => void
-  upgradePageToSchema: (id: string) => boolean
   markDirty: (pageId?: string) => void
   isDirty: () => boolean
   save: () => Promise<void>
@@ -307,14 +306,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         }
       }
     }),
-
-    upgradePageToSchema: (id) => {
-      // Stage 2 made schema mandatory; this lives on as a defensive no-op for
-      // any legacy page that slipped through without one. Real migration is
-      // server/scripts/migrate-pages-to-schema.ts (headless Playwright).
-      const page = get().pages.find(p => p.id === id)
-      return !!page?.schema
-    },
 
     markDirty: (pageId) => set((s) => {
       const id = pageId ?? s.activePageId
