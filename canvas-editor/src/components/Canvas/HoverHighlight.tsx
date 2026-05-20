@@ -1,5 +1,6 @@
 import { type RefObject } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 
 interface HoverHighlightProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
@@ -9,7 +10,7 @@ export function HoverHighlight({ iframeRef }: HoverHighlightProps) {
   const hoveredId = useEditorStore(s => s.hoveredId)
   const hoveredRect = useEditorStore(s => s.hoveredRect)
   const selectedIds = useEditorStore(s => s.selectedIds)
-  const viewport = useEditorStore(s => s.viewport)
+  const viewport = useViewportStore(s => s.viewport)
 
   if (!hoveredId || !hoveredRect || selectedIds.includes(hoveredId) || !iframeRef.current) return null
 

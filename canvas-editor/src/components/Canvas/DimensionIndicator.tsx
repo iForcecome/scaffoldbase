@@ -1,7 +1,7 @@
-import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 
 export function DimensionIndicator() {
-  const getDeviceWidth = useEditorStore(s => s.getDeviceWidth)
+  const getDeviceWidth = useViewportStore(s => s.getDeviceWidth)
   const deviceWidth = getDeviceWidth()
 
   return (

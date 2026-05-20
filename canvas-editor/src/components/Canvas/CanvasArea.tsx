@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 import { CanvasViewport } from './CanvasViewport'
 import { BrowserFrame } from './BrowserFrame'
 import { ContentIFrame } from './ContentIFrame'
@@ -13,10 +14,10 @@ import { useBridge } from '../../hooks/use-bridge'
 
 export function CanvasArea() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const setViewport = useEditorStore(s => s.setViewport)
-  const zoomTo = useEditorStore(s => s.zoomTo)
+  const setViewport = useViewportStore(s => s.setViewport)
+  const zoomTo = useViewportStore(s => s.zoomTo)
   const activePageId = useEditorStore(s => s.activePageId)
-  const getDeviceWidth = useEditorStore(s => s.getDeviceWidth)
+  const getDeviceWidth = useViewportStore(s => s.getDeviceWidth)
   const selectElement = useEditorStore(s => s.selectElement)
   const isPreview = useEditorStore(s => s.activeTool === 'preview')
 
@@ -35,11 +36,11 @@ export function CanvasArea() {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         const delta = -e.deltaY * 0.001
-        const current = useEditorStore.getState().viewport.zoom
+        const current = useViewportStore.getState().viewport.zoom
         const newZoom = Math.max(0.1, Math.min(3, current + delta))
         zoomTo(newZoom)
       } else {
-        const v = useEditorStore.getState().viewport
+        const v = useViewportStore.getState().viewport
         setViewport({ x: v.x - e.deltaX, y: v.y - e.deltaY })
       }
     }

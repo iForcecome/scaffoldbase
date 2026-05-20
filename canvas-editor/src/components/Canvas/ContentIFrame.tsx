@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { useEditorStore, consumeSuppressReload, sendBridgeMessage } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 import { injectBridge } from '../../utils/inject-bridge'
 import { deriveSpecPath } from '../../utils/spec-path'
 
@@ -99,8 +100,8 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
     return page?.html || ''
   })
   const activePageId = useEditorStore(s => s.activePageId)
-  const iframeHeight = useEditorStore(s => s.iframeHeight)
-  const setIframeHeight = useEditorStore(s => s.setIframeHeight)
+  const iframeHeight = useViewportStore(s => s.iframeHeight)
+  const setIframeHeight = useViewportStore(s => s.setIframeHeight)
   const isPreview = useEditorStore(s => s.activeTool === 'preview')
   const editingTextId = useEditorStore(s => s.editingTextId)
   const selectElement = useEditorStore(s => s.selectElement)

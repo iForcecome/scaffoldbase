@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useEditorStore, setBridgeSender, consumePendingReveal } from '../stores/editor-store'
+import { useViewportStore } from '../stores/viewport-store'
 import { deriveSpecPath } from '../utils/spec-path'
 
 function handleIframeWheel(data: Record<string, unknown>) {
-  const store = useEditorStore.getState()
+  const vp = useViewportStore.getState()
   const ctrlKey = data.ctrlKey || data.metaKey
   if (ctrlKey) {
     const delta = -(data.deltaY as number) * 0.001
-    const newZoom = Math.max(0.1, Math.min(3, store.viewport.zoom + delta))
-    store.zoomTo(newZoom)
+    const newZoom = Math.max(0.1, Math.min(3, vp.viewport.zoom + delta))
+    vp.zoomTo(newZoom)
   } else {
-    store.setViewport({
-      x: store.viewport.x - (data.deltaX as number),
-      y: store.viewport.y - (data.deltaY as number),
+    vp.setViewport({
+      x: vp.viewport.x - (data.deltaX as number),
+      y: vp.viewport.y - (data.deltaY as number),
     })
   }
 }
@@ -89,7 +90,7 @@ export function useBridge() {
           updateSelectedRect(data.id as string, data.rect as any)
           const revealId = consumePendingReveal()
           if (revealId === data.id) {
-            useEditorStore.getState().panToElement(data.rect as any)
+            useViewportStore.getState().panToElement(data.rect as any)
           }
         }
         break

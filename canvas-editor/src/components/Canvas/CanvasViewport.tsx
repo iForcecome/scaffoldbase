@@ -1,8 +1,9 @@
 import { useRef, useEffect, type ReactNode } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 
 export function CanvasViewport({ children }: { children: ReactNode }) {
-  const viewport = useEditorStore(s => s.viewport)
+  const viewport = useViewportStore(s => s.viewport)
   const activePageId = useEditorStore(s => s.activePageId)
   const scrollRef = useRef<HTMLDivElement>(null)
 

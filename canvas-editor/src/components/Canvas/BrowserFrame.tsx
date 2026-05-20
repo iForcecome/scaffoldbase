@@ -1,5 +1,5 @@
 import { useCallback, useRef, type ReactNode } from 'react'
-import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 
 interface BrowserFrameProps {
   deviceWidth: number
@@ -8,12 +8,12 @@ interface BrowserFrameProps {
 }
 
 export function BrowserFrame({ deviceWidth, pageSlug, children }: BrowserFrameProps) {
-  const setIframeHeight = useEditorStore(s => s.setIframeHeight)
+  const setIframeHeight = useViewportStore(s => s.setIframeHeight)
   const dragRef = useRef<{ startY: number; startH: number } | null>(null)
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
-    const store = useEditorStore.getState()
+    const store = useViewportStore.getState()
     dragRef.current = { startY: e.clientY, startH: store.iframeHeight }
     const el = e.currentTarget as HTMLElement
     el.setPointerCapture(e.pointerId)
@@ -21,7 +21,7 @@ export function BrowserFrame({ deviceWidth, pageSlug, children }: BrowserFramePr
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current) return
-    const zoom = useEditorStore.getState().viewport.zoom
+    const zoom = useViewportStore.getState().viewport.zoom
     const delta = (e.clientY - dragRef.current.startY) / zoom
     setIframeHeight(dragRef.current.startH + delta)
   }, [setIframeHeight])

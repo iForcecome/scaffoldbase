@@ -7,6 +7,9 @@ import { buildPageSchemaFromDomTree } from '../page-schema/from-dom-tree'
 import { validatePageSchema } from '../page-schema/validate'
 import { applySchemaOperations as applySchemaOperationList } from '../schema-operations/apply-schema-operation'
 import type { SchemaOperation } from '../schema-operations/types'
+import { useViewportStore, type Device } from './viewport-store'
+
+export type { Device } from './viewport-store'
 
 export interface DOMNode {
   id: string
@@ -36,14 +39,6 @@ interface PageSnapshot {
   schema?: PageSchema | null
 }
 
-export type Device = 'desktop' | 'tablet' | 'mobile'
-
-const DEVICE_WIDTHS: Record<Device, number> = {
-  desktop: 1080,
-  tablet: 768,
-  mobile: 375,
-}
-
 export type Tool = 'select' | 'zoom' | 'marquee' | 'text' | 'insert' | 'preview'
 
 type Rect = { x: number; y: number; width: number; height: number }
@@ -70,13 +65,9 @@ interface EditorState {
   selectedStyles: Record<string, string> | null
   hoveredId: string | null
   hoveredRect: Rect | null
-  viewport: { x: number; y: number; zoom: number }
-  device: Device
-  customWidth: number | null
   activeTool: Tool
   leftPanelOpen: boolean
   rightPanelOpen: boolean
-  iframeHeight: number
   undoStack: PageSnapshot[]
   redoStack: PageSnapshot[]
   saving: boolean
@@ -92,10 +83,6 @@ interface EditorActions {
   updateSelectedRect: (id: string, rect: Rect) => void
   setSelectedStyles: (styles: Record<string, string>) => void
   hoverElement: (id: string | null, rect?: Rect | null) => void
-  setViewport: (v: Partial<EditorState['viewport']>) => void
-  zoomTo: (zoom: number) => void
-  setDevice: (d: Device) => void
-  setCustomWidth: (w: number) => void
   setTool: (t: Tool) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
@@ -104,8 +91,6 @@ interface EditorActions {
   pushUndo: () => void
   undo: () => void
   redo: () => void
-  setIframeHeight: (h: number) => void
-  getDeviceWidth: () => number
   getActivePage: () => Page | undefined
   getPrimarySelectedId: () => string | null
   addPage: () => void
@@ -117,7 +102,6 @@ interface EditorActions {
   isDirty: () => boolean
   save: () => Promise<void>
   setEditingText: (id: string | null) => void
-  panToElement: (rect: Rect) => void
 }
 
 export {
@@ -230,13 +214,9 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     selectedStyles: null,
     hoveredId: null,
     hoveredRect: null,
-    viewport: { x: 0, y: 0, zoom: 1 },
-    device: 'desktop',
-    customWidth: null,
     activeTool: 'select',
     leftPanelOpen: true,
     rightPanelOpen: true,
-    iframeHeight: 800,
     undoStack: [],
     redoStack: [],
     saving: false,
@@ -263,11 +243,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.selectedStyles = null
       s.hoveredId = null
       s.hoveredRect = null
-      s.viewport = { x: 0, y: 0, zoom: 1 }
       s.undoStack = []
       s.redoStack = []
       s.activeTool = 'select'
       s.editingTextId = null
+      useViewportStore.getState().resetViewport()
     }),
 
     setActivePage: (id) => set((s) => {
@@ -279,7 +259,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.hoveredRect = null
       s.domTree = []
       s.semanticIndex = []
-      s.viewport = { x: 0, y: 0, zoom: 1 }
+      useViewportStore.getState().resetViewport()
     }),
 
     setDomTree: (tree) => set((s) => {
@@ -328,26 +308,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       s.hoveredRect = rect ?? null
     }),
 
-    setViewport: (v) => set((s) => {
-      Object.assign(s.viewport, v)
-    }),
-
-    zoomTo: (zoom) => set((s) => {
-      s.viewport.zoom = Math.max(0.1, Math.min(3, zoom))
-    }),
-
-    setDevice: (d) => set((s) => {
-      s.device = d
-      s.customWidth = null
-      s.viewport = { x: 0, y: 0, zoom: 1 }
-    }),
-
-    setCustomWidth: (w) => set((s) => {
-      s.customWidth = Math.max(320, Math.min(2560, w))
-      s.viewport = { x: 0, y: 0, zoom: s.viewport.zoom }
-    }),
-
-    setIframeHeight: (h) => set((s) => { s.iframeHeight = Math.max(768, h) }),
     setTool: (t) => set((s) => {
       const wasPreview = s.activeTool === 'preview'
       const willPreview = t === 'preview'
@@ -425,7 +385,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     }),
 
-    getDeviceWidth: () => get().customWidth ?? DEVICE_WIDTHS[get().device],
     getActivePage: () => get().pages.find(p => p.id === get().activePageId),
     getPrimarySelectedId: () => {
       const ids = get().selectedIds
@@ -563,51 +522,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
 
     setEditingText: (id) => set((s) => { s.editingTextId = id }),
-
-    panToElement: (rect) => {
-      const s = get()
-      const zoom = s.viewport.zoom
-      const canvasEl = document.querySelector('[data-canvas-bg]') as HTMLElement | null
-      if (!canvasEl) return
-      const canvasBounds = canvasEl.getBoundingClientRect()
-
-      const iframeEl = canvasEl.querySelector('iframe')
-      if (!iframeEl) return
-      const iframeRect = iframeEl.getBoundingClientRect()
-
-      const elLeft = iframeRect.left + rect.x * zoom
-      const elTop = iframeRect.top + rect.y * zoom
-      const elRight = elLeft + rect.width * zoom
-      const elBottom = elTop + rect.height * zoom
-
-      const PAD = 50
-      const vLeft = canvasBounds.left + PAD
-      const vTop = canvasBounds.top + PAD
-      const vRight = canvasBounds.right - PAD
-      const vBottom = canvasBounds.bottom - PAD
-
-      if (elLeft >= vLeft && elTop >= vTop && elRight <= vRight && elBottom <= vBottom) {
-        return
-      }
-
-      const isCompletelyOutside =
-        elRight < vLeft || elLeft > vRight || elBottom < vTop || elTop > vBottom
-
-      if (isCompletelyOutside || (elRight - elLeft) > (vRight - vLeft) || (elBottom - elTop) > (vBottom - vTop)) {
-        const dx = (vLeft + vRight) / 2 - (elLeft + elRight) / 2
-        const dy = vTop - elTop
-        set((s) => { s.viewport.x += dx; s.viewport.y += dy })
-        return
-      }
-
-      let dx = 0, dy = 0
-      if (elLeft < vLeft) dx = vLeft - elLeft
-      else if (elRight > vRight) dx = vRight - elRight
-      if (elTop < vTop) dy = vTop - elTop
-      else if (elBottom > vBottom) dy = vBottom - elBottom
-
-      set((s) => { s.viewport.x += dx; s.viewport.y += dy })
-    },
   }))
 )
 

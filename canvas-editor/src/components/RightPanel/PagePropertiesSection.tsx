@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Download, FileText, RefreshCw } from 'lucide-react'
 import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 import { api } from '../../services/api'
 
 const BODY_SF_ID = 'sf-0'
@@ -11,8 +12,8 @@ export function PagePropertiesSection() {
   const renamePage = useEditorStore(s => s.renamePage)
   const upgradePageToSchema = useEditorStore(s => s.upgradePageToSchema)
   const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
-  const deviceWidth = useEditorStore(s => s.getDeviceWidth())
-  const setCustomWidth = useEditorStore(s => s.setCustomWidth)
+  const deviceWidth = useViewportStore(s => s.getDeviceWidth())
+  const setCustomWidth = useViewportStore(s => s.setCustomWidth)
 
   const page = pages.find(p => p.id === activePageId)
   const projectId = useEditorStore(s => s.projectId)

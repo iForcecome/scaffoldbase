@@ -1,9 +1,9 @@
-import { useEditorStore } from '../../stores/editor-store'
+import { useViewportStore } from '../../stores/viewport-store'
 
 export function ZoomControls() {
-  const viewport = useEditorStore(s => s.viewport)
-  const zoomTo = useEditorStore(s => s.zoomTo)
-  const setViewport = useEditorStore(s => s.setViewport)
+  const viewport = useViewportStore(s => s.viewport)
+  const zoomTo = useViewportStore(s => s.zoomTo)
+  const setViewport = useViewportStore(s => s.setViewport)
 
   const zoomPercent = Math.round(viewport.zoom * 100)
 
