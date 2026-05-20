@@ -1,21 +1,5 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { buildSemanticIndex, type SemanticIndexEntry } from '../utils/semantic-index'
-
-export interface DOMNode {
-  id: string
-  sfId?: string | null
-  tag: string
-  label: string
-  semanticLabel?: string | null
-  component?: string | null
-  role?: string | null
-  variant?: string | null
-  specPath?: string | null
-  rect: { x: number; y: number; width: number; height: number }
-  styles: Record<string, string>
-  children: DOMNode[]
-}
 
 type Rect = { x: number; y: number; width: number; height: number }
 
@@ -30,8 +14,6 @@ export interface SelectedElement {
 }
 
 interface SelectionState {
-  domTree: DOMNode[]
-  semanticIndex: SemanticIndexEntry[]
   selectedIds: string[]
   selectedElements: Record<string, SelectedElement>
   selectedStyles: Record<string, string> | null
@@ -40,7 +22,6 @@ interface SelectionState {
 }
 
 interface SelectionActions {
-  setDomTree: (tree: DOMNode[]) => void
   selectElement: (id: string | null, rect?: Rect | null, label?: string | null, multi?: boolean, meta?: Partial<SelectedElement>) => void
   updateSelectedRect: (id: string, rect: Rect) => void
   setSelectedStyles: (styles: Record<string, string>) => void
@@ -52,18 +33,11 @@ interface SelectionActions {
 
 export const useSelectionStore = create<SelectionState & SelectionActions>()(
   immer((set, get) => ({
-    domTree: [],
-    semanticIndex: [],
     selectedIds: [],
     selectedElements: {},
     selectedStyles: null,
     hoveredId: null,
     hoveredRect: null,
-
-    setDomTree: (tree) => set((s) => {
-      s.domTree = tree
-      s.semanticIndex = buildSemanticIndex(tree)
-    }),
 
     selectElement: (id, rect, label, multi, meta) => set((s) => {
       if (id === null) {
@@ -114,8 +88,6 @@ export const useSelectionStore = create<SelectionState & SelectionActions>()(
       s.selectedStyles = null
       s.hoveredId = null
       s.hoveredRect = null
-      s.domTree = []
-      s.semanticIndex = []
     }),
 
     getPrimarySelectedId: () => {

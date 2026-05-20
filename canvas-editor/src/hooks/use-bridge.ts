@@ -25,7 +25,6 @@ type MessageHandler = (data: Record<string, unknown>) => void
 
 export function useBridge() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const setDomTree = useSelectionStore(s => s.setDomTree)
   const selectElement = useSelectionStore(s => s.selectElement)
   const updateSelectedRect = useSelectionStore(s => s.updateSelectedRect)
   const setSelectedStyles = useSelectionStore(s => s.setSelectedStyles)
@@ -45,7 +44,6 @@ export function useBridge() {
 
     switch (data.type) {
       case 'ready': {
-        sendToIframe({ type: 'request-tree' })
         const tool = useToolStore.getState()
         const selection = useSelectionStore.getState()
         const currentMode = tool.activeTool === 'preview' ? 'preview' : 'design'
@@ -54,9 +52,6 @@ export function useBridge() {
         if (lastSelected) sendToIframe({ type: 'get-computed-style', id: lastSelected })
         break
       }
-      case 'dom-tree':
-        setDomTree(data.tree || [])
-        break
       case 'element-click': {
         const multi = !!(data.shiftKey || data.metaKey || data.ctrlKey)
         const activePageId = useEditorStore.getState().activePageId
@@ -143,7 +138,7 @@ export function useBridge() {
         break
       }
     }
-  }, [setDomTree, selectElement, updateSelectedRect, setSelectedStyles, hoverElement])
+  }, [selectElement, updateSelectedRect, setSelectedStyles, hoverElement])
 
   useEffect(() => {
     window.addEventListener('message', onMessage)

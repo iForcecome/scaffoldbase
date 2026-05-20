@@ -4,6 +4,7 @@ import {
   Copy, Trash2, Pencil, Upload,
 } from 'lucide-react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 import { api } from '../../services/api'
 
 export function PageList() {
@@ -68,12 +69,8 @@ export function PageList() {
         ...state,
         pages: result.pages,
         activePageId: result.pages[result.pages.length - 1]?.id ?? state.activePageId,
-        selectedIds: [],
-        selectedElements: {},
-        selectedStyles: null,
-        domTree: [],
-        semanticIndex: [],
       }))
+      useSelectionStore.getState().resetForPageChange()
     } finally {
       setUploading(false)
       if (uploadInputRef.current) uploadInputRef.current.value = ''

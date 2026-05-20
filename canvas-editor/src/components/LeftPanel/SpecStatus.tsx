@@ -1,6 +1,6 @@
 import { defaultTokens } from '../../design-system/tokens'
 import { useEditorStore } from '../../stores/editor-store'
-import { useSelectionStore } from '../../stores/selection-store'
+import type { ComponentNode } from '../../page-schema/types'
 
 function countTokenLeaves(value: unknown): number {
   if (Array.isArray(value)) {
@@ -16,9 +16,20 @@ function countTokenLeaves(value: unknown): number {
   return 1
 }
 
+function countSchemaNodes(nodes: ComponentNode[] | undefined): number {
+  if (!nodes) return 0
+  let total = 0
+  for (const node of nodes) {
+    total += 1
+    total += countSchemaNodes(node.children)
+  }
+  return total
+}
+
 export function SpecStatus() {
-  const pageCount = useEditorStore(s => s.pages.length)
-  const semanticIndex = useSelectionStore(s => s.semanticIndex)
+  const pages = useEditorStore(s => s.pages)
+  const pageCount = pages.length
+  const nodeCount = pages.reduce((acc, page) => acc + countSchemaNodes(page.schema?.page.sections), 0)
   const dirtyCount = useEditorStore(s => s.dirtyPageIds.length)
   const tokenCount = countTokenLeaves(defaultTokens)
 
@@ -33,7 +44,7 @@ export function SpecStatus() {
       </div>
       <div className="flex flex-wrap gap-1">
         <span className="spec-mini-tag bg-brand-50 text-brand-600">{pageCount} 页面</span>
-        <span className="spec-mini-tag bg-purple-50 text-purple-600">{semanticIndex.length} 节点</span>
+        <span className="spec-mini-tag bg-purple-50 text-purple-600">{nodeCount} 节点</span>
         <span className="spec-mini-tag bg-pink-50 text-pink-600">{tokenCount} Token</span>
       </div>
     </div>

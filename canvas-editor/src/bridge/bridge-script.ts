@@ -225,6 +225,12 @@ export function getBridgeScript(): string {
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   }
 
+  function respond(reqData, payload) {
+    var msg = Object.assign({}, payload);
+    if (reqData && reqData._rid) msg._rid = reqData._rid;
+    parent.postMessage(msg, '*');
+  }
+
   function isDecorativeElement(el) {
     var tag = el.tagName.toLowerCase();
     if (tag !== 'div' && tag !== 'span') return false;
@@ -248,86 +254,6 @@ export function getBridgeScript(): string {
       target = target.parentElement.closest('[' + BRIDGE_ATTR + ']') || target.parentElement;
     }
     return target;
-  }
-
-  function parseDOMTree(el, depth) {
-    if (depth > 10) return null;
-    var tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta' || tag === 'br' || tag === 'hr') return null;
-    if (isDecorativeElement(el)) return null;
-    var rect = el.getBoundingClientRect();
-    if (rect.width < 2 && rect.height < 2) return null;
-    if (tag === 'svg' || tag === 'path' || tag === 'circle' || tag === 'line' || tag === 'polyline' || tag === 'polygon' || tag === 'rect' || tag === 'g') {
-      if (tag !== 'svg') return null;
-      return Object.assign({ id: el.getAttribute(BRIDGE_ATTR) || '', tag: tag, label: inferLabel(el), rect: rectToObj(rect), children: [] }, getSemanticMeta(el));
-    }
-    var children = [];
-    for (var i = 0; i < el.children.length; i++) {
-      var node = parseDOMTree(el.children[i], depth + 1);
-      if (node) children.push(node);
-    }
-    return Object.assign({
-      id: el.getAttribute(BRIDGE_ATTR) || '',
-      tag: tag,
-      label: inferLabel(el),
-      rect: rectToObj(rect),
-      children: children
-    }, getSemanticMeta(el));
-  }
-
-  function pruneTree(nodes, depth) {
-    if (!nodes || !nodes.length) return [];
-    var result = [];
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      var tag = node.tag;
-
-      if (tag === 'svg' || tag === 'input' || tag === 'th' || tag === 'td' || tag === 'tr') continue;
-
-      if (depth >= 3 && (tag === 'span' || tag === 'a' || tag === 'p' || tag === 'button' || tag === 'label')) continue;
-
-      var children = pruneTree(node.children, depth + 1);
-
-      if (tag === 'div' && children.length === 1) {
-        var child = children[0];
-        var generic = ['容器', '空容器', '表格容器', '输入框容器', '选择框容器'];
-        var label = generic.indexOf(node.label) >= 0 ? child.label : node.label;
-        result.push({ id: node.id, tag: child.tag, label: label, rect: node.rect, children: child.children });
-        continue;
-      }
-
-      if (tag === 'nav') children = [];
-
-      if (tag === 'thead') {
-        node.label = '表头行';
-        children = [];
-      }
-
-      if (tag === 'tbody') {
-        var trCount = 0;
-        for (var j = 0; j < node.children.length; j++) {
-          if (node.children[j].tag === 'tr') trCount++;
-        }
-        node.label = trCount > 1 ? '数据行 ×' + trCount : '数据行';
-        children = [];
-      }
-
-      node.children = children;
-      result.push(node);
-    }
-    return result;
-  }
-
-  function sendTree() {
-    var body = document.body;
-    if (!body) return;
-    assignIds(body);
-    upgradeSemanticAttributes(body);
-    var tree = parseDOMTree(body, 0);
-    if (tree) {
-      var pruned = pruneTree(tree.children, 1);
-      parent.postMessage({ type: 'dom-tree', tree: pruned }, '*');
-    }
   }
 
   function getElementById(id) {
@@ -474,20 +400,19 @@ export function getBridgeScript(): string {
             errors.push(err && err.message ? err.message : String(err));
           }
         }
-        sendTree();
-        parent.postMessage({ type: 'operation-result', ok: errors.length === 0, errors: errors }, '*');
+        respond(data, { type: 'operation-result', ok: errors.length === 0, errors: errors });
         break;
       }
       case 'update-text': {
         var el2 = getElementById(data.id);
-        if (el2) { el2.textContent = data.text; sendTree(); }
+        if (el2) { el2.textContent = data.text; }
         break;
       }
       case 'get-rect': {
         var el3 = getElementById(data.id);
         if (el3) {
           var rect3 = el3.getBoundingClientRect();
-          parent.postMessage({ type: 'element-rect', id: data.id, rect: rectToObj(rect3) }, '*');
+          respond(data, { type: 'element-rect', id: data.id, rect: rectToObj(rect3) });
         }
         break;
       }
@@ -501,14 +426,14 @@ export function getBridgeScript(): string {
             styles[props[i]] = cs.getPropertyValue(props[i]);
           }
           var rect5 = el5.getBoundingClientRect();
-          parent.postMessage(Object.assign({ type: 'computed-style', id: data.id, styles: styles, rect: rectToObj(rect5), label: inferLabel(el5) }, getSemanticMeta(el5)), '*');
+          respond(data, Object.assign({ type: 'computed-style', id: data.id, styles: styles, rect: rectToObj(rect5), label: inferLabel(el5) }, getSemanticMeta(el5)));
         }
         break;
       }
       case 'get-element-html': {
         var elH = getElementById(data.id);
         if (elH) {
-          parent.postMessage(Object.assign({ type: 'element-html', id: data.id, html: elH.outerHTML, tag: elH.tagName.toLowerCase(), label: inferLabel(elH) }, getSemanticMeta(elH)), '*');
+          respond(data, Object.assign({ type: 'element-html', id: data.id, html: elH.outerHTML, tag: elH.tagName.toLowerCase(), label: inferLabel(elH) }, getSemanticMeta(elH)));
         }
         break;
       }
@@ -522,10 +447,9 @@ export function getBridgeScript(): string {
             elR.parentNode.replaceChild(newEl, elR);
             assignIds(newEl);
             upgradeSemanticAttributes(newEl);
-            sendTree();
             var newRect = newEl.getBoundingClientRect();
             var newId = newEl.getAttribute(BRIDGE_ATTR);
-            parent.postMessage({ type: 'element-replaced', id: newId, rect: rectToObj(newRect) }, '*');
+            respond(data, { type: 'element-replaced', id: newId, rect: rectToObj(newRect) });
           }
         }
         break;
@@ -544,8 +468,7 @@ export function getBridgeScript(): string {
             elEdit.removeEventListener('blur', onBlur);
             elEdit.removeEventListener('keydown', onKey);
             elEdit.contentEditable = 'false';
-            sendTree();
-            parent.postMessage({ type: 'edit-done', id: data.id }, '*');
+            respond(data, { type: 'edit-done', id: data.id });
           };
           var onKey = function(ev) {
             if (ev.key === 'Escape') {
@@ -556,21 +479,6 @@ export function getBridgeScript(): string {
           elEdit.addEventListener('blur', onBlur);
           elEdit.addEventListener('keydown', onKey);
         }
-        break;
-      }
-      case 'reorder-element': {
-        var elReorder = getElementById(data.id);
-        var targetParent = data.parentId ? getElementById(data.parentId) : document.body;
-        if (elReorder && targetParent && elReorder.parentNode === targetParent) {
-          var refEl = data.insertBeforeId ? getElementById(data.insertBeforeId) : null;
-          targetParent.insertBefore(elReorder, refEl);
-          sendTree();
-          parent.postMessage({ type: 'reorder-done' }, '*');
-        }
-        break;
-      }
-      case 'request-tree': {
-        sendTree();
         break;
       }
       case 'set-mode': {

@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { api } from '../services/api'
 import { clonePageSchema, createDefaultPageSchema, renderPageSchemaToHtml, type PageSchema } from '../page-schema/render'
-import { buildPageSchemaFromDomTree } from '../page-schema/from-dom-tree'
 import { validatePageSchema } from '../page-schema/validate'
 import { applySchemaOperations as applySchemaOperationList } from '../schema-operations/apply-schema-operation'
 import type { SchemaOperation } from '../schema-operations/types'
@@ -11,7 +10,7 @@ import { useSelectionStore } from './selection-store'
 import { useHistoryStore, type PageSnapshot } from './history-store'
 
 export type { Device } from './viewport-store'
-export type { DOMNode, SelectedElement } from './selection-store'
+export type { SelectedElement } from './selection-store'
 export type { Tool } from './tool-store'
 
 export interface Page {
@@ -310,27 +309,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     }),
 
     upgradePageToSchema: (id) => {
-      let upgraded = false
-      let snapshot: PageSnapshot | null = null
-      const domTree = useSelectionStore.getState().domTree
-      set((s) => {
-        const page = s.pages.find(p => p.id === id)
-        if (!page || page.schema) return
-
-        if (id !== s.activePageId) return
-        const schema = buildPageSchemaFromDomTree(id, page.title, domTree)
-        if (!schema) return
-
-        snapshot = createPageSnapshot(page)
-        page.schema = schema
-        page.html = renderPageSchemaToHtml(schema)
-        if (!s.dirtyPageIds.includes(id)) {
-          s.dirtyPageIds.push(id)
-        }
-        upgraded = true
-      })
-      if (snapshot) useHistoryStore.getState().pushUndo(snapshot)
-      return upgraded
+      // Stage 2 made schema mandatory; this lives on as a defensive no-op for
+      // any legacy page that slipped through without one. Real migration is
+      // server/scripts/migrate-pages-to-schema.ts (headless Playwright).
+      const page = get().pages.find(p => p.id === id)
+      return !!page?.schema
     },
 
     markDirty: (pageId) => set((s) => {
@@ -347,27 +330,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (!state.projectId || state.dirtyPageIds.length === 0) return
       set({ saving: true })
       try {
-        const domTree = useSelectionStore.getState().domTree
         for (const pageId of state.dirtyPageIds) {
           const page = state.pages.find(p => p.id === pageId)
           if (page) {
-            const derivedSchema = page.schema || (pageId === state.activePageId
-              ? buildPageSchemaFromDomTree(pageId, page.title, domTree)
-              : null)
-            const html = page.schema
-              ? renderPageSchemaToHtml(page.schema)
-              : page.html
-
-            if (derivedSchema && !page.schema) {
-              page.schema = derivedSchema
-            }
-            if (html !== page.html) {
-              page.html = html
-            }
+            const html = page.schema ? renderPageSchemaToHtml(page.schema) : page.html
+            if (html !== page.html) page.html = html
             await api.pages.update(state.projectId, pageId, {
               html,
               title: page.title,
-              schema: page.schema ?? derivedSchema ?? undefined,
+              schema: page.schema ?? undefined,
             })
           }
         }

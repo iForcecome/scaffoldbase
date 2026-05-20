@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 import { sendBridgeMessage, setPendingReveal } from '../../bridge/host'
 import { useEditorStore } from '../../stores/editor-store'
-import { useSelectionStore, type DOMNode } from '../../stores/selection-store'
+import { useSelectionStore } from '../../stores/selection-store'
+import type { ComponentNode } from '../../page-schema/types'
 
 function ContainerIcon({ className }: { className?: string }) {
   return (
@@ -46,60 +47,41 @@ function TextIcon({ letter, isSelected }: { letter: string; isSelected: boolean 
   )
 }
 
-function GridIcon({ isSelected }: { isSelected: boolean }) {
-  return (
-    <span className={`w-3 h-3 flex items-center justify-center text-[10px] ${isSelected ? 'text-brand-500' : 'text-ink-3'}`}>
-      ⊞
-    </span>
-  )
-}
-
-function getNodeIcon(tag: string, isSelected: boolean, hasChildren: boolean) {
-  if (tag === 'thead' || tag === 'tbody') return <GridIcon isSelected={isSelected} />
-  if (tag === 'table') return <TableIcon />
-
-  if (!hasChildren) {
-    if (['h1', 'h2', 'h3'].includes(tag)) return <TextIcon letter="H" isSelected={isSelected} />
-    if (['nav', 'span', 'a', 'label'].includes(tag)) return <TextIcon letter="T" isSelected={isSelected} />
-    if (tag === 'button') return <TextIcon letter="B" isSelected={isSelected} />
+function getNodeIcon(component: string, isSelected: boolean, hasChildren: boolean) {
+  if (component === 'DataTable') return <TableIcon />
+  if (component === 'Button') return <TextIcon letter="B" isSelected={isSelected} />
+  if (component === 'Navigation') return <TextIcon letter="N" isSelected={isSelected} />
+  if (!hasChildren && (component === 'Text' || component === 'Heading')) {
+    return <TextIcon letter="T" isSelected={isSelected} />
   }
-
   return <ContainerIcon className={isSelected ? 'w-3 h-3 text-brand-500' : 'w-3 h-3 text-ink-3'} />
 }
 
-function getTagBadge(node: DOMNode, isSelected: boolean, hasChildren: boolean) {
+const DATA_COMPONENTS = new Set(['DataTable', 'List'])
+
+function getComponentBadge(node: ComponentNode, isSelected: boolean) {
   if (isSelected) {
     return <span className="ml-auto spec-mini-tag bg-brand-50 text-brand-600">选中</span>
   }
-  if (node.component) {
-    return <span className="ml-auto spec-mini-tag bg-purple-50 text-purple-600 truncate max-w-16">{node.component}</span>
-  }
-  if (!hasChildren) return null
-
-  const tag = node.tag
-  const data = ['table', 'tbody', 'thead', 'ul', 'ol']
-  if (data.includes(tag)) {
+  if (DATA_COMPONENTS.has(node.component)) {
     return <span className="ml-auto spec-mini-tag bg-emerald-50 text-emerald-600">数据</span>
   }
-
-  const containers = ['div', 'section', 'main', 'header', 'footer', 'aside', 'nav', 'article']
-  if (containers.includes(tag)) {
-    return <span className="ml-auto spec-mini-tag bg-surface-2 text-ink-3">容器</span>
-  }
-  return null
+  return <span className="ml-auto spec-mini-tag bg-purple-50 text-purple-600 truncate max-w-16">{node.component}</span>
 }
 
-function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth: number; parentId: string | null; siblingIds: string[] }) {
+function LayerNode({ node, depth, parentId, siblingIds, pageId }: { node: ComponentNode; depth: number; parentId: string | null; siblingIds: string[]; pageId: string }) {
   const [expanded, setExpanded] = useState(depth < 3)
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
   const selectedIds = useSelectionStore(s => s.selectedIds)
   const selectElement = useSelectionStore(s => s.selectElement)
   const hoverElement = useSelectionStore(s => s.hoverElement)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
   const rowRef = useRef<HTMLDivElement>(null)
 
-  const hasChildren = node.children.length > 0
+  const children = node.children ?? []
+  const hasChildren = children.length > 0
   const isSelected = selectedIds.includes(node.id)
-  const displayLabel = node.semanticLabel || node.label
+  const displayLabel = node.label || node.component
 
   const indentMap: Record<number, string> = {
     1: 'pl-5',
@@ -129,21 +111,20 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    const pos = dropPosition
     setDropPosition(null)
     try {
       const source = JSON.parse(e.dataTransfer.getData('text/plain'))
       if (source.id === node.id) return
       if (source.parentId !== parentId) return
+      if (!siblingIds.includes(source.id)) return
 
-      const myIndex = siblingIds.indexOf(node.id)
-      const insertIndex = dropPosition === 'below' ? myIndex + 1 : myIndex
-      const insertBeforeId = siblingIds[insertIndex] === source.id
-        ? siblingIds[insertIndex + 1] || null
-        : siblingIds[insertIndex] || null
-
-      if (insertBeforeId === source.id) return
-
-      sendBridgeMessage({ type: 'reorder-element', id: source.id, parentId, insertBeforeId })
+      applySchemaOperations(pageId, [{
+        type: 'moveNode',
+        target: source.id,
+        reference: node.id,
+        position: pos === 'below' ? 'after' : 'before',
+      }])
     } catch { /* ignore */ }
   }
 
@@ -161,7 +142,12 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
         } ${dropPosition === 'above' ? 'border-t-2 border-brand-400' : ''} ${dropPosition === 'below' ? 'border-b-2 border-brand-400' : ''}`}
         onClick={(e) => {
           const multi = e.shiftKey || e.metaKey || e.ctrlKey
-          selectElement(node.id, null, node.label, multi)
+          selectElement(node.id, null, node.label ?? null, multi, {
+            sfId: node.id,
+            component: node.component,
+            role: node.role ?? null,
+            variant: node.variant ?? null,
+          })
           if (!multi) setPendingReveal(node.id)
           sendBridgeMessage({ type: 'get-computed-style', id: node.id })
         }}
@@ -182,7 +168,7 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
           <span className="w-3 shrink-0" />
         )}
 
-        {getNodeIcon(node.tag, isSelected, hasChildren)}
+        {getNodeIcon(node.component, isSelected, hasChildren)}
 
         <div className="min-w-0 flex flex-col">
           <span className={
@@ -193,26 +179,34 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
           }>
             {displayLabel}
           </span>
-          {(node.role || node.sfId) && (
+          {node.role && (
             <span className="text-[10px] text-ink-4 truncate leading-3">
-              {node.role || node.sfId}
+              {node.role}
             </span>
           )}
         </div>
 
-        {getTagBadge(node, isSelected, hasChildren)}
+        {getComponentBadge(node, isSelected)}
       </div>
 
-      {expanded && hasChildren && node.children.map(child => (
-        <LayerNode key={child.id} node={child} depth={depth + 1} parentId={node.id} siblingIds={node.children.map(c => c.id)} />
+      {expanded && hasChildren && children.map(child => (
+        <LayerNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          parentId={node.id}
+          siblingIds={children.map(c => c.id)}
+          pageId={pageId}
+        />
       ))}
     </>
   )
 }
 
 export function LayerTree() {
-  const domTree = useSelectionStore(s => s.domTree)
   const activePage = useEditorStore(s => s.pages.find(p => p.id === s.activePageId))
+  const sections = activePage?.schema?.page.sections ?? []
+  const pageId = activePage?.id ?? ''
 
   return (
     <div>
@@ -221,13 +215,20 @@ export function LayerTree() {
         {activePage?.title ? activePage.title + '页' : '页面'}
       </div>
 
-      {domTree.length === 0 ? (
+      {sections.length === 0 ? (
         <div className="px-4 py-6 text-center text-ink-3 text-[11px]">
-          加载中...
+          页面暂无组件
         </div>
       ) : (
-        domTree.map(node => (
-          <LayerNode key={node.id} node={node} depth={1} parentId={null} siblingIds={domTree.map(n => n.id)} />
+        sections.map(node => (
+          <LayerNode
+            key={node.id}
+            node={node}
+            depth={1}
+            parentId={null}
+            siblingIds={sections.map(n => n.id)}
+            pageId={pageId}
+          />
         ))
       )}
     </div>

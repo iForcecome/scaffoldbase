@@ -27,25 +27,48 @@ export function consumeSuppressReload(): boolean {
   return false
 }
 
+interface PendingRpc {
+  resolve: (value: unknown) => void
+  reject: (err: Error) => void
+  timer: ReturnType<typeof setTimeout>
+  responseType: string
+}
+
+const pendingRpc = new Map<string, PendingRpc>()
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (e) => {
+    const data = e.data
+    if (!data || typeof data !== 'object') return
+    const rid = data._rid
+    if (typeof rid !== 'string') return
+    const entry = pendingRpc.get(rid)
+    if (!entry) return
+    pendingRpc.delete(rid)
+    clearTimeout(entry.timer)
+    entry.resolve(data)
+  })
+}
+
 export function requestFromBridge<T = Record<string, unknown>>(
   msg: Record<string, unknown>,
   responseType: string,
   timeoutMs = 5000,
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
+  const rid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : `rpc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      window.removeEventListener('message', handler)
+      pendingRpc.delete(rid)
       reject(new Error(`Bridge timeout waiting for "${responseType}"`))
     }, timeoutMs)
-
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === responseType) {
-        clearTimeout(timer)
-        window.removeEventListener('message', handler)
-        resolve(e.data as T)
-      }
-    }
-    window.addEventListener('message', handler)
-    sendBridgeMessage(msg)
+    pendingRpc.set(rid, {
+      resolve: resolve as (value: unknown) => void,
+      reject,
+      timer,
+      responseType,
+    })
+    sendBridgeMessage({ ...msg, _rid: rid })
   })
 }
