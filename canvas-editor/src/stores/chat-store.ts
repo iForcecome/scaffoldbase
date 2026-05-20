@@ -150,8 +150,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
         {
           message: text,
           pageId: page.id,
-          pageSource: page.source,
-          pageSchema: page.source === 'schema' ? page.schema : undefined,
+          pageSchema: page.schema ?? undefined,
           elementHtml,
           elementId,
           selectedNode,
@@ -178,8 +177,8 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
           case 'applied':
             if (event.schemaOperations) {
               const currentPage = useEditorStore.getState().getActivePage()
-              if (currentPage?.source !== 'schema') {
-                throw new Error('Schema operations can only be applied to schema pages')
+              if (!currentPage?.schema) {
+                throw new Error('Schema operations require a page schema')
               }
               const schemaValidation = validateSchemaOperationResponse({ operations: event.schemaOperations })
               if (!schemaValidation.ok || !schemaValidation.value) {

@@ -8,8 +8,6 @@ type Page = {
   title: string
   html: string
   schema?: unknown
-  source?: 'schema' | 'legacy-html'
-  renderMode?: 'source-html' | 'schema'
   origin?: unknown
 }
 
@@ -55,8 +53,6 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
           title: { type: 'string' },
           html: { type: 'string' },
           schema: { type: 'object', additionalProperties: true },
-          source: { type: 'string', enum: ['schema', 'legacy-html'] },
-          renderMode: { type: 'string', enum: ['source-html', 'schema'] },
         },
       },
     },
@@ -66,8 +62,6 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       title?: string
       html: string
       schema?: unknown
-      source?: 'schema' | 'legacy-html'
-      renderMode?: 'source-html' | 'schema'
     }
 
     const spec = await db.query.specs.findFirst({
@@ -89,15 +83,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         title: body.title ?? 'Untitled',
         html: body.html,
         schema: body.schema,
-        source: body.source ?? 'legacy-html',
-        renderMode: body.renderMode,
       })
     } else {
       if (body.title) pages[pageIndex].title = body.title
       pages[pageIndex].html = body.html
       if ('schema' in body) pages[pageIndex].schema = body.schema
-      if (body.source) pages[pageIndex].source = body.source
-      if (body.renderMode) pages[pageIndex].renderMode = body.renderMode
     }
 
     const [updated] = await db.update(specs)

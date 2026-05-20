@@ -113,19 +113,13 @@ export function PagePropertiesSection() {
       {/* Page Title */}
       <div className="p-3 border-b border-surface-3">
         <div className="text-[11px] font-semibold text-ink-3 uppercase tracking-wider mb-2">页面</div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] text-ink-3">数据源</span>
-          <span className={`spec-mini-tag ${page?.source === 'schema' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
-            {page?.source === 'schema' ? 'Schema' : 'Legacy HTML'}
-          </span>
-        </div>
-        {page?.source !== 'schema' && (
+        {!page?.schema && (
           <button
             className="mb-3 w-full h-8 rounded-md border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700 flex items-center justify-center gap-1.5 hover:bg-amber-100"
             onClick={handleUpgradeToSchema}
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            转换为 Schema 页面
+            从 DOM 重建 Schema
           </button>
         )}
         <div>

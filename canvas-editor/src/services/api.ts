@@ -51,8 +51,6 @@ export interface Page {
   title: string
   html: string
   schema?: PageSchema | null
-  source?: 'schema' | 'legacy-html'
-  renderMode?: 'source-html' | 'schema'
   origin?: unknown
 }
 
@@ -82,7 +80,7 @@ export const api = {
 
   pages: {
     list: (projectId: string) => request<Page[]>(`/projects/${projectId}/pages`),
-    update: (projectId: string, pageId: string, data: { title?: string; html: string; schema?: PageSchema | null; source?: 'schema' | 'legacy-html'; renderMode?: 'source-html' | 'schema' }) =>
+    update: (projectId: string, pageId: string, data: { title?: string; html: string; schema?: PageSchema | null }) =>
       request<Page[]>(`/projects/${projectId}/pages/${pageId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -110,7 +108,6 @@ export const api = {
     stream: (projectId: string, body: {
       message: string
       pageId?: string
-      pageSource?: 'schema' | 'legacy-html'
       pageSchema?: PageSchema | null
       elementId?: string
       elementHtml?: string

@@ -16,8 +16,6 @@ type StoredPage = {
   title: string
   html: string
   schema?: unknown
-  source?: 'schema' | 'legacy-html'
-  renderMode?: 'source-html' | 'schema'
   origin?: unknown
 }
 

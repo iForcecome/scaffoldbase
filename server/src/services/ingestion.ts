@@ -133,8 +133,6 @@ export interface IngestionMaterialInput {
 export interface StandardPage {
   id: string
   title: string
-  source: 'schema'
-  renderMode?: 'source-html' | 'schema'
   schema: PageSchema
   html: string
   origin: {
@@ -517,32 +515,6 @@ function renderComponent(node: ComponentNode): string {
 </section>`
 }
 
-function prepareUploadedHtmlForPreview(html: string): string {
-  const trimmed = html.trim()
-  if (!trimmed) return ''
-
-  const hasDocument = /<!doctype html|<html[\s>]/i.test(trimmed)
-  const previewHtml = hasDocument
-    ? trimmed
-    : `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-${trimmed}
-</body>
-</html>`
-
-  if (/<base\s/i.test(previewHtml)) return previewHtml
-  const baseTag = '<base target="_blank">'
-  if (/<head[^>]*>/i.test(previewHtml)) {
-    return previewHtml.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`)
-  }
-  return previewHtml
-}
-
 export function renderStandardPageHtml(schema: PageSchema): string {
   const body = schema.page.sections.map(renderComponent).join('\n')
   const theme = schema.page.theme ?? {}
@@ -639,8 +611,6 @@ export function ingestMaterials(input: {
     const title = material.extracted.title || `页面 ${index + 1}`
     const pageId = ensureUniqueId(createSafeId('page', title, index), usedPageIds)
     const schema = buildPageSchema(material, index, pageId)
-    const rawMaterial = rawMaterials.find(item => item.id === material.rawMaterialId)
-    const useSourcePreview = material.kind === 'html-page' && rawMaterial?.originalText
     const report: ConversionReport = {
       confidence: material.confidence,
       sourceMaterialIds: [material.rawMaterialId],
@@ -655,12 +625,8 @@ export function ingestMaterials(input: {
     return {
       id: schema.page.id,
       title: schema.page.title,
-      source: 'schema' as const,
-      renderMode: useSourcePreview ? 'source-html' as const : 'schema' as const,
       schema,
-      html: useSourcePreview
-        ? prepareUploadedHtmlForPreview(rawMaterial.originalText ?? '')
-        : renderStandardPageHtml(schema),
+      html: renderStandardPageHtml(schema),
       origin: {
         type: 'uploaded-html' as const,
         rawMaterialIds: [material.rawMaterialId],

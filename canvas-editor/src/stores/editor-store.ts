@@ -28,16 +28,12 @@ export interface Page {
   title: string
   html: string
   schema?: PageSchema | null
-  source?: 'schema' | 'legacy-html'
-  renderMode?: 'source-html' | 'schema'
   origin?: unknown
 }
 
 interface PageSnapshot {
   html: string
   schema?: PageSchema | null
-  source?: Page['source']
-  renderMode?: Page['renderMode']
 }
 
 export type Device = 'desktop' | 'tablet' | 'mobile'
@@ -179,17 +175,15 @@ function createGeneratedPage(id: string, title: string): Page {
     title,
     html: renderPageSchemaToHtml(schema),
     schema,
-    source: 'schema',
   }
 }
 
 function normalizeLoadedPages(pages: Page[]): Page[] {
   const usedIds = new Set<string>()
   return pages.map((page, index) => {
-    const normalizedPage = {
+    const normalizedPage: Page = {
       ...page,
       schema: page.schema ? normalizePageSchemaIds(page.schema, index) : null,
-      source: page.source ?? 'legacy-html',
     }
     let id = normalizeId(normalizedPage.id, `page-${index + 1}`)
     let suffix = 2
@@ -202,7 +196,7 @@ function normalizeLoadedPages(pages: Page[]): Page[] {
       normalizedPage.id = id
       if (normalizedPage.schema) normalizedPage.schema.page.id = id
     }
-    if (normalizedPage.source === 'schema' && normalizedPage.schema && normalizedPage.renderMode !== 'source-html') {
+    if (normalizedPage.schema) {
       normalizedPage.html = renderPageSchemaToHtml(normalizedPage.schema)
     }
     return normalizedPage
@@ -252,16 +246,12 @@ function createPageSnapshot(page: Page): PageSnapshot {
   return {
     html: page.html,
     schema: page.schema ? JSON.parse(JSON.stringify(page.schema)) as PageSchema : page.schema ?? null,
-    source: page.source,
-    renderMode: page.renderMode,
   }
 }
 
 function restorePageSnapshot(page: Page, snapshot: PageSnapshot) {
   page.html = snapshot.html
   page.schema = snapshot.schema ? JSON.parse(JSON.stringify(snapshot.schema)) as PageSchema : snapshot.schema ?? null
-  page.source = snapshot.source ?? page.source
-  page.renderMode = snapshot.renderMode ?? page.renderMode
 }
 
 export const useEditorStore = create<EditorState & EditorActions>()(
@@ -425,7 +415,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     applySchemaOperations: (pageId, operations) => set((s) => {
       const page = s.pages.find(p => p.id === pageId)
-      if (!page || page.source !== 'schema' || !page.schema || operations.length === 0) return
+      if (!page || !page.schema || operations.length === 0) return
 
       s.undoStack.push(createPageSnapshot(page))
       s.redoStack = []
@@ -436,7 +426,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         throw new Error(`Invalid page schema after operation: ${validation.errors.join('; ')}`)
       }
       page.schema = nextSchema
-      page.renderMode = 'schema'
       page.html = renderPageSchemaToHtml(nextSchema)
       if (!s.dirtyPageIds.includes(pageId)) {
         s.dirtyPageIds.push(pageId)
@@ -520,14 +509,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         id: newId,
         title: source.title + ' 副本',
       }) : null
-      const sourceType = schema ? 'schema' : (source.source ?? 'legacy-html')
       s.pages.splice(idx + 1, 0, {
         id: newId,
         title: source.title + ' 副本',
-        html: source.renderMode === 'source-html' ? source.html : (schema ? renderPageSchemaToHtml(schema) : source.html),
+        html: schema ? renderPageSchemaToHtml(schema) : source.html,
         schema,
-        source: sourceType,
-        renderMode: source.renderMode,
       })
       s.activePageId = newId
       s.selectedIds = []
@@ -552,18 +538,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       let upgraded = false
       set((s) => {
         const page = s.pages.find(p => p.id === id)
-        if (!page || page.source === 'schema') return
+        if (!page || page.schema) return
 
-        const schema = page.schema ?? (id === s.activePageId
-          ? buildPageSchemaFromDomTree(id, page.title, s.domTree)
-          : null)
+        if (id !== s.activePageId) return
+        const schema = buildPageSchemaFromDomTree(id, page.title, s.domTree)
         if (!schema) return
 
         s.undoStack.push(createPageSnapshot(page))
         s.redoStack = []
         page.schema = schema
-        page.source = 'schema'
-        page.renderMode = 'schema'
         page.html = renderPageSchemaToHtml(schema)
         if (!s.dirtyPageIds.includes(id)) {
           s.dirtyPageIds.push(id)
@@ -590,17 +573,15 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         for (const pageId of state.dirtyPageIds) {
           const page = state.pages.find(p => p.id === pageId)
           if (page) {
-            const source = page.source ?? 'legacy-html'
             const derivedSchema = page.schema || (pageId === state.activePageId
               ? buildPageSchemaFromDomTree(pageId, page.title, state.domTree)
               : null)
-            const schema = source === 'schema' ? page.schema : derivedSchema
-            const html = source === 'schema' && page.schema && page.renderMode !== 'source-html'
+            const html = page.schema
               ? renderPageSchemaToHtml(page.schema)
               : page.html
 
-            if (schema && !page.schema) {
-              page.schema = schema
+            if (derivedSchema && !page.schema) {
+              page.schema = derivedSchema
             }
             if (html !== page.html) {
               page.html = html
@@ -608,9 +589,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
             await api.pages.update(state.projectId, pageId, {
               html,
               title: page.title,
-              schema: page.schema ?? schema ?? undefined,
-              source,
-              renderMode: page.renderMode,
+              schema: page.schema ?? derivedSchema ?? undefined,
             })
           }
         }

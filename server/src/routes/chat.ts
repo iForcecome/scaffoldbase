@@ -16,11 +16,10 @@ import {
   type ChatMessage,
 } from '../services/ai.js'
 
-type Page = { id: string; title: string; html: string; schema?: unknown; source?: 'schema' | 'legacy-html'; origin?: unknown }
+type Page = { id: string; title: string; html: string; schema?: unknown; origin?: unknown }
 type ChatBody = {
   message: string
   pageId?: string
-  pageSource?: 'schema' | 'legacy-html'
   pageSchema?: unknown
   elementId?: string
   elementHtml?: string
@@ -30,6 +29,12 @@ type ChatMode = {
   isSchemaMode: boolean
   isFragmentMode: boolean
   wantsLayoutRewrite: boolean
+}
+
+function pageHasSchema(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const page = (value as { page?: unknown }).page
+  return !!page
 }
 
 function sendSSE(reply: { raw: { write: (data: string) => void } }, data: unknown) {
@@ -78,9 +83,8 @@ function optimizeLayoutFallbackFragment(html: string): string | null {
 }
 
 function resolveChatMode(body: ChatBody, page?: Page): ChatMode {
-  const pageSource = body.pageSource ?? page?.source
   const pageSchema = body.pageSchema ?? page?.schema
-  const isSchemaMode = pageSource === 'schema' && !!pageSchema
+  const isSchemaMode = pageHasSchema(pageSchema)
   const isFragmentMode = !!body.elementHtml
   const wantsLayoutRewrite = !!body.elementHtml &&
     body.elementHtml.length > 800 &&
@@ -163,7 +167,6 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           message: { type: 'string', minLength: 1 },
           pageId: { type: 'string' },
-          pageSource: { type: 'string', enum: ['schema', 'legacy-html'] },
           pageSchema: { type: 'object', additionalProperties: true },
           elementId: { type: 'string' },
           elementHtml: { type: 'string' },
@@ -248,7 +251,6 @@ export const chatRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           message: { type: 'string', minLength: 1 },
           pageId: { type: 'string' },
-          pageSource: { type: 'string', enum: ['schema', 'legacy-html'] },
           pageSchema: { type: 'object', additionalProperties: true },
           elementHtml: { type: 'string' },
           selectedNode: { type: 'object' },

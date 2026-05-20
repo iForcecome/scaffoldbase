@@ -22,7 +22,7 @@ export const specs = pgTable('specs', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   version: integer('version').notNull().default(1),
-  pages: jsonb('pages').$type<{ id: string; title: string; html: string; schema?: unknown; source?: 'schema' | 'legacy-html'; origin?: unknown }[]>().default([]),
+  pages: jsonb('pages').$type<{ id: string; title: string; html: string; schema?: unknown; origin?: unknown }[]>().default([]),
   rawMaterials: jsonb('raw_materials').default([]),
   normalizedMaterials: jsonb('normalized_materials').default([]),
   ingestionJobs: jsonb('ingestion_jobs').default([]),
