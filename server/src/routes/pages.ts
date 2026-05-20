@@ -107,4 +107,49 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
 
     return updated.pages as Page[]
   })
+
+  app.delete('/projects/:id/pages/:pageId', {
+    schema: {
+      params: {
+        type: 'object',
+        required: ['id', 'pageId'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          pageId: { type: 'string' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { id, pageId } = request.params as { id: string; pageId: string }
+
+    const spec = await db.query.specs.findFirst({
+      where: eq(specs.projectId, id),
+      orderBy: desc(specs.version),
+    })
+
+    if (!spec) {
+      reply.status(404)
+      return { error: 'Project spec not found' }
+    }
+
+    const pages = (spec.pages ?? []) as Page[]
+    const pageIndex = pages.findIndex((p) => p.id === pageId)
+
+    if (pageIndex === -1) {
+      return pages
+    }
+
+    if (pages.length <= 1) {
+      reply.status(400)
+      return { error: 'Cannot delete the last page' }
+    }
+
+    const nextPages = pages.filter((p) => p.id !== pageId)
+    const [updated] = await db.update(specs)
+      .set({ pages: nextPages })
+      .where(eq(specs.id, spec.id))
+      .returning()
+
+    return updated.pages as Page[]
+  })
 }

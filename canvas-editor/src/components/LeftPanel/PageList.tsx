@@ -21,6 +21,7 @@ export function PageList() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [deletingPageId, setDeletingPageId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadInputRef = useRef<HTMLInputElement>(null)
@@ -76,6 +77,23 @@ export function PageList() {
     } finally {
       setUploading(false)
       if (uploadInputRef.current) uploadInputRef.current.value = ''
+    }
+  }
+
+  const handleDeletePage = async (pageId: string) => {
+    if (pages.length <= 1 || deletingPageId) return
+    try {
+      setDeletingPageId(pageId)
+      if (projectId) {
+        await api.pages.delete(projectId, pageId)
+      }
+      deletePage(pageId)
+      setMenuPageId(null)
+    } catch (error) {
+      console.error(error)
+      window.alert('删除页面失败')
+    } finally {
+      setDeletingPageId(null)
     }
   }
 
@@ -194,13 +212,11 @@ export function PageList() {
                   </button>
                   {pages.length > 1 && (
                     <button
-                      className="w-full h-7 px-3 flex items-center gap-2 text-xs text-red-500 hover:bg-red-50"
-                      onClick={() => {
-                        deletePage(p.id)
-                        setMenuPageId(null)
-                      }}
+                      className="w-full h-7 px-3 flex items-center gap-2 text-xs text-red-500 hover:bg-red-50 disabled:opacity-50"
+                      disabled={deletingPageId === p.id}
+                      onClick={() => { void handleDeletePage(p.id) }}
                     >
-                      <Trash2 className="w-3 h-3" /> 删除页面
+                      <Trash2 className="w-3 h-3" /> {deletingPageId === p.id ? '删除中...' : '删除页面'}
                     </button>
                   )}
                 </div>

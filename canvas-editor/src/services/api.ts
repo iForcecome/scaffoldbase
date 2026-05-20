@@ -87,6 +87,8 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+    delete: (projectId: string, pageId: string) =>
+      request<Page[]>(`/projects/${projectId}/pages/${pageId}`, { method: 'DELETE' }),
   },
 
   ingestion: {

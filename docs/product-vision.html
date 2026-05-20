@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SpecFlow 产品愿景</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter','Noto Sans SC','system-ui','sans-serif'], mono: ['JetBrains Mono','SF Mono','Menlo','monospace'] },
+      colors: {
+        brand:   { 50:'#f0f4ff', 100:'#dbe4ff', 200:'#bac8ff', 300:'#91a7ff', 400:'#748ffc', 500:'#5c7cfa', 600:'#4c6ef5', 700:'#4263eb', 800:'#3b5bdb', 900:'#364fc7' },
+        accent:  { 50:'#fdf4ff', 100:'#fae8ff', 200:'#f5d0fe', 300:'#f0abfc', 400:'#e879f9', 500:'#d946ef', 600:'#c026d3', 700:'#a21caf' },
+        surface: { 0:'#ffffff', 1:'#f8f9fc', 2:'#f1f3f9', 3:'#e9ecf5', 4:'#dde1ed' },
+        ink:     { 0:'#0f172a', 1:'#334155', 2:'#64748b', 3:'#94a3b8', 4:'#cbd5e1' },
+        ok:'#10b981', warn:'#f59e0b', err:'#ef4444',
+      }
+    }
+  }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter','Noto Sans SC',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  .anchor { scroll-margin-top:80px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  .h-section { font-size:1.5rem; font-weight:700; }
+  .quote { position:relative; padding:18px 22px 18px 48px; background:#f0f4ff; border-left:3px solid #4c6ef5; border-radius:8px; }
+  .quote::before { content:'❝'; position:absolute; left:14px; top:8px; font-size:32px; color:#91a7ff; line-height:1; font-family:Georgia,serif; }
+  .pillar { position:relative; padding:20px; border-radius:12px; transition:transform .15s; }
+  .pillar:hover { transform:translateY(-2px); }
+  .pillar-num { position:absolute; top:-12px; left:20px; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; background:white; }
+  .flow-step { position:relative; padding:14px 18px; background:white; border:1px solid #e9ecf5; border-radius:10px; }
+  .flow-step + .flow-step { margin-top:8px; }
+  .flow-step::before { content:''; position:absolute; left:-1px; top:14px; bottom:14px; width:3px; background:#4c6ef5; border-radius:0 3px 3px 0; }
+  pre { font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body class="bg-surface-1 text-ink-0">
+
+<!-- ============== TOP NAV ============== -->
+<header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-surface-3">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-accent-600 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.847-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+      </div>
+      <div>
+        <div class="text-sm font-bold">SpecFlow · 产品愿景</div>
+        <div class="text-xs text-ink-3">v1.0 · 整理自对话 · 2026-05-20</div>
+      </div>
+    </div>
+    <nav class="hidden md:flex items-center gap-0.5 text-xs">
+      <a href="#what" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">是什么</a>
+      <a href="#origin" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">原话</a>
+      <a href="#pillars" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">支柱</a>
+      <a href="#outputs" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">产物</a>
+      <a href="#concepts" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">概念</a>
+      <a href="#flows" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">用户旅程</a>
+      <a href="#agents" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Agent 系统</a>
+      <a href="#decisions" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">决策</a>
+      <a href="#open" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">待答</a>
+      <a href="#refs" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">链接</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-10 space-y-16">
+
+<!-- ============== HERO ============== -->
+<section id="what" class="anchor">
+  <div class="text-xs text-brand-600 font-semibold tracking-wider mb-2">PRODUCT VISION · 留存查看</div>
+  <h1 class="text-4xl font-bold tracking-tight mb-4">SpecFlow · 从一个想法到一个上线产品</h1>
+  <p class="text-ink-2 text-base leading-relaxed max-w-3xl">
+    SpecFlow 让任何人能够<b>快速生成符合自己要求的网页</b>，由 AI Agent 细致管理，把好的设计沉淀成可复用物料，
+    并自动产出一份<b>语言无关的产品规范（Spec）</b>，让 Cursor 等 AI IDE 接入 base 后端，
+    把设计稿一路编译成可上线的产品。
+  </p>
+  <div class="mt-6 flex flex-wrap gap-2 text-xs">
+    <span class="badge bg-brand-100 text-brand-700">AI 驱动网页生成</span>
+    <span class="badge bg-accent-100 text-accent-700">物料沉淀</span>
+    <span class="badge bg-ok/10 text-ok">多风格 / Token</span>
+    <span class="badge bg-warn/10 text-warn">PRD + Spec 自动产出</span>
+    <span class="badge bg-ink-1 text-white">Cursor / MCP 链路</span>
+    <span class="badge bg-ink-1/10 text-ink-1">Supabase-like base</span>
+  </div>
+</section>
+
+<!-- ============== 用户原话 ============== -->
+<section id="origin" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">01</span>
+    <h2 class="h-section">用户原话（来源）</h2>
+  </div>
+
+  <div class="quote text-sm text-ink-1 leading-relaxed">
+    我的目的是想能<b>快速生成一个符合我要求的页面</b>，然后我可通过 AI Agent 来很细致地管理我生成的页面，
+    并且我想把<b>好的设计做成物料进行沉淀</b>，这些物料<b>可以替换、可以插入生成后的网页，也可以按某个风格生成</b>，
+    每个设计风格都要有<b>自己的 token 语言</b>。<br><br>
+    用户设计好了设计稿了，可以产出跟当前产品的<b>各种物料、HTML 设计稿、设计语言、HTML PRD、Spec 文档</b>，
+    spec 要能让用户<b>无论用什么语言都可以很好地还原</b>。<br><br>
+    并且后续我会提供一个 base，<b>类似 supabase 等</b>，让他能使用 cursor 等 IDE 工具快速开发出来产品并上线。
+  </div>
+
+  <div class="mt-3 text-xs text-ink-3 leading-relaxed">
+    本文档是对上述想法的系统化整理 + 对话补充。决策记录章节标注了由用户拍板的内容。
+    技术实现层面请查看 <a href="./canvas-architecture.html" class="text-brand-600 hover:underline">架构方案文档</a>。
+  </div>
+</section>
+
+<!-- ============== 5 大支柱 ============== -->
+<section id="pillars" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">02</span>
+    <h2 class="h-section">产品的 5 大支柱</h2>
+  </div>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+
+    <div class="pillar bg-white border-2 border-brand-500">
+      <div class="pillar-num text-brand-700 border-2 border-brand-500">P1</div>
+      <div class="mt-4">
+        <div class="font-semibold mb-2">快速生成符合要求的网页</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          用户输入需求 / 选风格 / 挑模板，AI 在几分钟内生成一个完整可见可用的网页，
+          不是 wireframe，是接近最终视觉的成品。
+        </div>
+      </div>
+    </div>
+
+    <div class="pillar bg-white border-2 border-accent-400">
+      <div class="pillar-num text-accent-700 border-2 border-accent-400">P2</div>
+      <div class="mt-4">
+        <div class="font-semibold mb-2">AI Agent 细致管理</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          生成后，用户可以让 AI Agent 反复精细调整：改文案、换布局、换风格、插入新组件、替换物料。
+          每次修改都是结构化操作，可撤销、可追溯。
+        </div>
+      </div>
+    </div>
+
+    <div class="pillar bg-white border-2 border-ok/50">
+      <div class="pillar-num text-ok border-2 border-ok/50">P3</div>
+      <div class="mt-4">
+        <div class="font-semibold mb-2">好设计沉淀为物料</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          用户做出满意的设计片段，一键保存为<b>物料</b>。物料可被自己 / 团队 / 公开复用。
+          可在新页面里插入、替换现有节点、或被 AI 推荐使用。
+        </div>
+      </div>
+    </div>
+
+    <div class="pillar bg-white border-2 border-warn/50">
+      <div class="pillar-num text-warn border-2 border-warn/50">P4</div>
+      <div class="mt-4">
+        <div class="font-semibold mb-2">设计风格 = 一套 Token 语言</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          每个设计风格定义一套自己的 token（颜色、字号、间距、圆角...）。
+          物料和页面只引用 token 名，<b>切换风格 = 切换 token 包</b>，整页视觉立刻变样。
+        </div>
+      </div>
+    </div>
+
+    <div class="pillar bg-white border-2 border-ink-1">
+      <div class="pillar-num text-ink-1 border-2 border-ink-1">P5</div>
+      <div class="mt-4">
+        <div class="font-semibold mb-2">从设计稿到上线产品</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          设计稿不只是一份 HTML，它能产出<b>物料 / 设计语言 / PRD / Spec</b>。
+          Spec 接入 Cursor + base 后端，让用户走完"设计 → 代码 → 上线"全链路。
+        </div>
+      </div>
+    </div>
+
+    <div class="pillar bg-gradient-to-br from-brand-50 to-accent-50 border-2 border-brand-200 flex items-center justify-center text-center min-h-[180px]">
+      <div>
+        <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">5 大支柱合起来</div>
+        <div class="text-sm text-ink-1 leading-relaxed">不是另一个"AI 画图工具"<br>而是<b>AI 时代的产品定义协议</b></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== 关键产物 ============== -->
+<section id="outputs" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">03</span>
+    <h2 class="h-section">关键产物 · 用户最终能拿走什么</h2>
+  </div>
+
+  <p class="text-sm text-ink-2 leading-relaxed mb-6">
+    一个完整的 SpecFlow 项目，向下编译会同时产出 6 类资产。它们是不同维度的"产物"，互相引用、互相约束。
+  </p>
+
+  <div class="space-y-3">
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-lg bg-brand-50 border-2 border-brand-300 flex items-center justify-center flex-shrink-0">
+        <span class="text-brand-700 font-bold text-sm font-mono">01</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1">HTML 设计稿（可直接预览的网页）</div>
+        <div class="text-sm text-ink-2 leading-relaxed">独立的 HTML 文件，含完整样式与交互（Alpine.js）。可直接打开预览、可上传到任意静态托管。</div>
+        <div class="mt-2 text-xs text-ink-3">输出形态：<code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">page.html</code> + <code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">assets/</code></div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-lg bg-warn/10 border-2 border-warn/40 flex items-center justify-center flex-shrink-0">
+        <span class="text-warn font-bold text-sm font-mono">02</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1">设计语言（Token 包）</div>
+        <div class="text-sm text-ink-2 leading-relaxed">项目使用的完整 token 系统，含 primitive / semantic / component 三层，支持 light / dark 模式。可单独导出复用到其他项目。</div>
+        <div class="mt-2 text-xs text-ink-3">输出形态：<code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">design-tokens.json</code> + <code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">tokens.css</code></div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-lg bg-ok/10 border-2 border-ok/40 flex items-center justify-center flex-shrink-0">
+        <span class="text-ok font-bold text-sm font-mono">03</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1">物料库（用户在此项目沉淀的物料）</div>
+        <div class="text-sm text-ink-2 leading-relaxed">用户在项目过程中保存的所有物料，含 Atom / Molecule / Organism / Template 四级。每个物料带 schema + 引用的 token slots + 参数。</div>
+        <div class="mt-2 text-xs text-ink-3">输出形态：<code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">materials/</code> · 可独立分享、可上架到团队物料库</div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-lg bg-brand-50 border-2 border-brand-300 flex items-center justify-center flex-shrink-0">
+        <span class="text-brand-700 font-bold text-sm font-mono">04</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1">HTML PRD · 产品需求文档</div>
+        <div class="text-sm text-ink-2 leading-relaxed">从 Spec 自动渲染的人类可读 PRD 页面，包含需求条目、用户故事、流程图、数据模型表、验收标准、API 契约。本身也是一个网页，可导出可分享。</div>
+        <div class="mt-2 text-xs text-ink-3">输出形态：<code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">prd.html</code> · 编辑 PRD = 编辑底层 Spec</div>
+      </div>
+    </div>
+
+    <div class="bg-white border-2 border-accent-400 rounded-xl p-5 flex items-start gap-5 shadow-sm">
+      <div class="w-12 h-12 rounded-lg bg-accent-50 border-2 border-accent-400 flex items-center justify-center flex-shrink-0">
+        <span class="text-accent-700 font-bold text-sm font-mono">05</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1 text-accent-700">Spec · 语言无关产品规范 ⭐</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          <b>终极产物</b>。结构化 JSON，描述产品要做什么（意图 + 数据契约 + 页面契约 + 状态机 + 业务规则），不规定怎么做。
+          用户用 React / Vue / Solid / Svelte / Go / Python 都能从同一份 Spec 还原出同一个产品。
+        </div>
+        <div class="mt-2 text-xs text-ink-3">输出形态：<code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">spec.json</code> + 派生 <code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">openapi.json</code> / <code class="font-mono bg-surface-2 px-1.5 py-0.5 rounded">prisma.schema</code></div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5 flex items-start gap-5">
+      <div class="w-12 h-12 rounded-lg bg-ink-1/10 border-2 border-ink-1 flex items-center justify-center flex-shrink-0">
+        <span class="text-ink-1 font-bold text-sm font-mono">06</span>
+      </div>
+      <div class="flex-1">
+        <div class="font-semibold mb-1">Cursor / MCP 链路（远期）</div>
+        <div class="text-sm text-ink-2 leading-relaxed">
+          通过 <code class="font-mono text-xs">@specflow/mcp</code> server，Cursor / Claude Code 实时连接 SpecFlow 项目，读 Spec、查物料、生成框架代码 stub。
+          配合 base 后端（Supabase-like），一键搭出可上线的应用。
+        </div>
+        <div class="mt-2 text-xs text-ink-3">未来形态 · 不在 v1/v2 主线，远期目标</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== 核心概念 ============== -->
+<section id="concepts" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">04</span>
+    <h2 class="h-section">用户需要理解的 5 个核心概念</h2>
+  </div>
+
+  <div class="space-y-4">
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge bg-warn/10 text-warn">Concept 1</span>
+        <div class="font-semibold">风格（Style Family）</div>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-3">
+        一套完整的设计语言，定义这个产品所有视觉的"基因"。Minimal Pro、Playful、Brutalist 等是官方内置风格；
+        团队也可以创建自己的风格。每个风格底下还有 light / dark 等模式变体。
+      </div>
+      <div class="bg-surface-1 rounded-lg p-3 text-xs text-ink-1">
+        <b class="text-ink-0">用户操作：</b>创建项目时必选 → 画布顶栏可"试换风格" → 一键还原
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge bg-warn/10 text-warn">Concept 2</span>
+        <div class="font-semibold">Token（设计令牌）</div>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-3">
+        风格的"原子单位"。每个具体的颜色 / 间距 / 字号都是一个 token。物料和页面只引用 token 名（如 <code class="font-mono text-xs">color.brand.primary</code>），不写死 hex 值。所以换风格 = 换 token 包，物料结构不变，视觉立刻变。
+      </div>
+      <div class="bg-surface-1 rounded-lg p-3 text-xs text-ink-1">
+        <b class="text-ink-0">用户基本无需直接面对 Token</b>，但高级用户可微调（override）。
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge bg-ok/10 text-ok">Concept 3</span>
+        <div class="font-semibold">物料（Material）</div>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-3">
+        可复用的设计片段。分四级（Atom / Molecule / Organism / Template）和三级归属（公共 / 团队 / 私有）。
+        物料能<b>插入</b>到任意页面、<b>替换</b>现有节点、<b>按当前风格自动适配</b>。
+      </div>
+      <div class="bg-surface-1 rounded-lg p-3 text-xs text-ink-1 space-y-1">
+        <div><b class="text-ink-0">用户操作 1：</b>从抽屉拖物料到画布 → 自动用当前风格的 token 渲染</div>
+        <div><b class="text-ink-0">用户操作 2：</b>满意的片段 → "保存为物料" → 选归属（公开 / 团队 / 私有）</div>
+        <div><b class="text-ink-0">用户操作 3：</b>"替换为..." → 选同类物料 → 一键替换</div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge bg-brand-100 text-brand-700">Concept 4</span>
+        <div class="font-semibold">PRD（HTML 化产品需求文档）</div>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-3">
+        从 Spec 自动渲染出来的产品需求文档，是一个真实的网页。包含需求块、用户故事、流程图、API 表、验收标准。
+        编辑 PRD ≈ 编辑底层 Spec 字段。可单独导出给团队成员阅读。
+      </div>
+      <div class="bg-surface-1 rounded-lg p-3 text-xs text-ink-1">
+        <b class="text-ink-0">关键：</b>PRD 不是单独写的文档，<b>它是 Spec 的可视化形态</b>。
+      </div>
+    </div>
+
+    <div class="bg-white border-2 border-accent-400 rounded-xl p-5 shadow-sm">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="badge bg-accent-100 text-accent-700">Concept 5</span>
+        <div class="font-semibold text-accent-700">Spec（语言无关产品规范） ⭐</div>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-3">
+        SpecFlow 的<b>终极产物</b>，结构化 JSON。描述产品要做什么、不规定用什么技术。
+        无论用 React / Vue / Solid / Svelte / 其他任何语言，<b>从 Spec 都能还原同一个产品</b>。
+      </div>
+      <div class="bg-surface-1 rounded-lg p-3 text-xs text-ink-1 space-y-1">
+        <div><b class="text-ink-0">来源 1（自动）：</b>用户在画布编辑时，系统从 Schema 结构自动推导 Spec 字段</div>
+        <div><b class="text-ink-0">来源 2（人工）：</b>用户在 SpecPanel 上标注业务意图（"此字段必填"、"此按钮触发 X 流程"）</div>
+        <div><b class="text-ink-0">消费方：</b>Cursor / Claude Code / 其他 AI IDE / 团队工程师</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== 用户旅程 ============== -->
+<section id="flows" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">05</span>
+    <h2 class="h-section">关键用户旅程</h2>
+  </div>
+
+  <div class="space-y-8">
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-brand-100 text-brand-700">Journey 1</span>
+        从零开始 · 创建项目
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Step 1</div>
+          <div class="text-sm">用户登录 → 点击"新建项目"</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Step 2</div>
+          <div class="text-sm">在风格选择页 <b>选一个 StyleFamily</b>（必选）。可从官方内置 / 团队风格 / 我的风格选</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Step 3</div>
+          <div class="text-sm">（可选）选一个起始模板，或者从空白开始</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Step 4</div>
+          <div class="text-sm">进入画布编辑器。<b>AI ChatBar 主动询问需求</b>："想做一个什么样的页面？"</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Step 5</div>
+          <div class="text-sm">用户用自然语言描述 → AI 在 30 秒内生成初版 → 可见可点</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-accent-100 text-accent-700">Journey 2</span>
+        AI Agent 精细管理
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户选中页面元素</div>
+          <div class="text-sm">点击画布中的任意组件 → 元素被选中 → ChatBar 自动 focus，附带选中元素的标签</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">下达指令</div>
+          <div class="text-sm">用户输入："把这个 Hero 的 CTA 按钮改成绿色，文案改为'立即体验'" → 发送</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">AI 处理</div>
+          <div class="text-sm">AI 通过 tool_use 输出结构化 SchemaOperation → 系统校验 → apply → 整页重渲</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户确认 / 撤销</div>
+          <div class="text-sm">不满意 Cmd+Z 撤销；满意继续下一轮对话。每次 AI 操作是一个独立撤销点</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-ok/10 text-ok">Journey 3</span>
+        沉淀好设计为物料
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户对某个片段满意</div>
+          <div class="text-sm">比如做出了一个特别好看的定价表 → 选中整个区块</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">"保存为物料"</div>
+          <div class="text-sm">点击右键菜单 → 弹窗：输入物料名 / 选分类（Organism）/ 选归属（私有 / 团队 / 公开）/ 标 tags</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">系统处理</div>
+          <div class="text-sm">提取 schema 片段 → 识别引用的 semantic token slots → 提取可参数化的字段（标题、价格、CTA）→ 自动生成预览图</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">物料入库</div>
+          <div class="text-sm">物料出现在左面板"我的物料"/"团队物料" → 之后任意项目可拖入使用</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-warn/10 text-warn">Journey 4</span>
+        试换风格
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户做完页面，想看不同风格效果</div>
+          <div class="text-sm">点击顶栏 "试换风格" → 弹出风格选择面板</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">选择新风格</div>
+          <div class="text-sm">从内置风格（Playful / Brutalist...）中选一个 → 点击预览</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">即时重渲</div>
+          <div class="text-sm">画布在 1 秒内整页重渲（token 替换）→ 视觉完全不同，结构和内容不变</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户决策</div>
+          <div class="text-sm">"应用" 永久切换风格 / "还原" 回到原风格 / 继续预览其他风格</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-brand-100 text-brand-700">Journey 5</span>
+        产出资产 · 多形态导出
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">完成设计</div>
+          <div class="text-sm">用户在 TopBar 点击 "导出"</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">选择导出形态</div>
+          <div class="text-sm">勾选要导出的产物：HTML 设计稿 / 设计语言 / 物料库 / PRD / Spec / 全部</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">生成包</div>
+          <div class="text-sm">系统打包为 zip：page.html, prd.html, spec.json, design-tokens.json, materials/...</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="badge bg-ink-1 text-white">Journey 6</span>
+        Cursor 接入 · 上线产品（远期）
+      </h3>
+      <div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">用户安装 SpecFlow MCP</div>
+          <div class="text-sm">在 Cursor 配置 <code class="font-mono text-xs">@specflow/mcp</code> server，连接自己的 SpecFlow 项目</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">Cursor 拿到 Spec</div>
+          <div class="text-sm">通过 MCP 资源接口读取 <code class="font-mono text-xs">spec://project/{id}</code>，获得完整 Spec</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">生成代码 + 接 Base</div>
+          <div class="text-sm">用户对 Cursor 说："基于这份 Spec 生成 Next.js 项目，连接到 SpecFlow base" → Cursor 用 MCP tool 拿到数据模型 → 生成 Prisma schema、API、页面组件</div>
+        </div>
+        <div class="flow-step">
+          <div class="text-xs text-ink-3 mb-1">一键部署</div>
+          <div class="text-sm">代码 push → base 服务自动 deploy → 用户拿到可访问的产品 URL</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== Agent 系统 ============== -->
+<section id="agents" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-accent-100 text-accent-700 flex items-center justify-center text-sm font-bold">06</span>
+    <h2 class="h-section">Agent 系统 · SpecFlow 是一张智能体网络</h2>
+  </div>
+
+  <div class="bg-accent-50 border border-accent-300 rounded-xl p-5 mb-6">
+    <div class="text-sm text-ink-1 leading-relaxed">
+      SpecFlow 不是"一个 AI 帮你画页面"，而是 <b>9 个专业 Agent 协作完成产品定义</b>。
+      用户只面对一个 ChatBar；底下有 Orchestrator Agent 拆解意图，分派给各专业 Agent 执行。
+      这是 Anthropic 推的 multi-agent pattern（Computer Use / Claude Code 同构）。
+    </div>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">AI Chat ≠ AI Agent · 关键区别</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">维度</th>
+          <th class="py-3 px-4 font-medium">AI Chat</th>
+          <th class="py-3 px-4 font-medium">AI Agent</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">输入</td><td class="py-2 px-4 text-ink-2">一句话指令</td><td class="py-2 px-4 text-accent-700 font-medium">一个目标</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">流程</td><td class="py-2 px-4 text-ink-2">单轮：问 → 答</td><td class="py-2 px-4 text-accent-700 font-medium">多轮：规划 → 执行 → 反思 → 调整</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">工具使用</td><td class="py-2 px-4 text-ink-2">通常无</td><td class="py-2 px-4 text-accent-700 font-medium">必须有 + 自主选择</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">状态</td><td class="py-2 px-4 text-ink-2">无</td><td class="py-2 px-4 text-accent-700 font-medium">目标记忆 + 进度</td></tr>
+        <tr><td class="py-2 px-4 font-medium">决策</td><td class="py-2 px-4 text-ink-2">用户每步</td><td class="py-2 px-4 text-accent-700 font-medium">Agent 自主中间步骤</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">9 个 Agent 角色</h3>
+  <p class="text-xs text-ink-3 mb-4">每个 Agent 是"专家"，有自己的目标 / 工具集 / 触发时机。按使用模式分三类。</p>
+
+  <div class="mb-4">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">A · 用户主动调用（V2 MVP · 必做）</div>
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="bg-white border-2 border-brand-300 rounded-xl p-4">
+        <div class="badge bg-brand-100 text-brand-700 mb-2">PageBuilder</div>
+        <div class="font-semibold text-sm mb-1">页面构建</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">从需求生成完整页面</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: search_materials, insert_material, switch_token, apply_schema_op</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">"做个 SaaS 着陆页，主打 AI 写作工具"</div>
+      </div>
+      <div class="bg-white border-2 border-brand-300 rounded-xl p-4">
+        <div class="badge bg-brand-100 text-brand-700 mb-2">Editor</div>
+        <div class="font-semibold text-sm mb-1">精细编辑</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">修改选中元素</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: apply_schema_op, get_computed_style</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">"把这个 CTA 改得更显眼"</div>
+      </div>
+      <div class="bg-white border-2 border-brand-300 rounded-xl p-4">
+        <div class="badge bg-brand-100 text-brand-700 mb-2">StyleCurator</div>
+        <div class="font-semibold text-sm mb-1">风格策展</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">从灵感生成新风格</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: image_analyze, extract_palette, create_style_family</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">"我喜欢 Linear 的风格，做一套类似的"</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <div class="text-xs font-semibold text-ok tracking-wider mb-2">B · 主动建议型（V2 加分项）</div>
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="bg-white border-2 border-ok/40 rounded-xl p-4">
+        <div class="badge bg-ok/10 text-ok mb-2">MaterialCurator</div>
+        <div class="font-semibold text-sm mb-1">物料策展</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">发现可沉淀的设计</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: scan_pages, detect_pattern, suggest_save</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">触发：用户做完 3 个相似页面时</div>
+      </div>
+      <div class="bg-white border-2 border-ok/40 rounded-xl p-4">
+        <div class="badge bg-ok/10 text-ok mb-2">Reviewer</div>
+        <div class="font-semibold text-sm mb-1">质量评审</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">检查页面质量问题</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: check_a11y, check_consistency, check_responsive</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">触发：用户点"导出"前自动跑</div>
+      </div>
+      <div class="bg-white border-2 border-ok/40 rounded-xl p-4">
+        <div class="badge bg-ok/10 text-ok mb-2">Suggester</div>
+        <div class="font-semibold text-sm mb-1">主动建议</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">给改进建议</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: analyze_page, recommend_material</div>
+        <div class="text-[11px] text-ink-3 mt-2 italic">触发：用户停留某页 30s 无操作</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-6">
+    <div class="text-xs font-semibold text-ink-1 tracking-wider mb-2">C · 后台自动型（V3 远期）</div>
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="bg-surface-1 border border-surface-3 rounded-xl p-4">
+        <div class="badge bg-surface-3 text-ink-1 mb-2">SpecAuthor</div>
+        <div class="font-semibold text-sm mb-1">Spec 作者</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">自动推导 Spec + 引导标注</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: derive_spec, suggest_annotation</div>
+      </div>
+      <div class="bg-surface-1 border border-surface-3 rounded-xl p-4">
+        <div class="badge bg-surface-3 text-ink-1 mb-2">PRDWriter</div>
+        <div class="font-semibold text-sm mb-1">PRD 编写</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">从 Spec 生成 PRD 内容</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">tools: render_prd_section, draft_user_story</div>
+      </div>
+      <div class="bg-surface-1 border border-surface-3 rounded-xl p-4">
+        <div class="badge bg-surface-3 text-ink-1 mb-2">CodeGenerator</div>
+        <div class="font-semibold text-sm mb-1">代码生成 · Cursor 侧</div>
+        <div class="text-xs text-ink-2 leading-relaxed mb-2">把 Spec 编译为可上线代码</div>
+        <div class="text-[11px] text-ink-3 font-mono leading-5">via MCP: search_materials, generate_data_model_code, render_page_to_framework</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">主控架构 · 用户视角 vs 系统视角</h3>
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="text-xs font-semibold text-brand-700 tracking-wider mb-3">用户视角 · 单一 ChatBar</div>
+      <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-3 text-ink-1">User: "把这个着陆页改成
+       更专业的风格，
+       加个定价区"
+
+ChatBar:
+  "好的，我已经：
+   ① 切换到 Pro 风格
+   ② 在 FAQ 上方插入定价区
+   ③ 顺手检查了一致性
+   有几处建议你看下..."</pre>
+      <div class="text-xs text-ink-3 mt-2">用户看到的是单一对话，体验流畅。</div>
+    </div>
+    <div class="bg-white border-2 border-accent-400 rounded-xl p-5">
+      <div class="text-xs font-semibold text-accent-700 tracking-wider mb-3">系统视角 · 多 Agent 协作</div>
+      <pre class="text-xs font-mono leading-6 bg-accent-50 rounded p-3 text-ink-1">Orchestrator Agent
+  │
+  ├─ 拆解用户意图为子任务
+  │
+  ├→ StyleCurator
+  │    "切到 Pro 风格"
+  ├→ PageBuilder
+  │    "插入定价区"
+  └→ Reviewer
+       "检查一致性"
+  │
+  └─ 汇总结果回复用户</pre>
+      <div class="text-xs text-ink-3 mt-2">底层是多个 Agent 串/并行协作。</div>
+    </div>
+  </div>
+
+  <div class="bg-gradient-to-br from-brand-50 to-accent-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">为什么这种设计很重要</div>
+    <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+      <li>① <b>专业化</b>：每个 Agent 只懂自己领域，prompt 更短、cache 命中率高、错误率低</li>
+      <li>② <b>可演进</b>：增加新能力 = 加新 Agent，不动 Orchestrator 与现有 Agent</li>
+      <li>③ <b>可观测</b>：每次任务可见"哪个 Agent 做了什么"，便于调试和给用户反馈</li>
+      <li>④ <b>可控成本</b>：低频高价值任务（如 Reviewer）用强模型，高频任务用快模型</li>
+      <li>⑤ <b>对齐用户原意</b>：你最早说的"AI Agent 来很细致地管理我生成的页面"—— 多 Agent 才能"细致"</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============== 决策记录 ============== -->
+<section id="decisions" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">07</span>
+    <h2 class="h-section">已对齐的关键决策</h2>
+  </div>
+
+  <p class="text-sm text-ink-2 leading-relaxed mb-5">
+    以下决策在对话中已与用户明确对齐。每条都附"原因 / 何时适用"以便后续 review。
+  </p>
+
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">#</th>
+          <th class="py-3 px-4 font-medium">主题</th>
+          <th class="py-3 px-4 font-medium">决策</th>
+          <th class="py-3 px-4 font-medium">原因</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D1</td>
+          <td class="py-3 px-4 font-semibold">真相源</td>
+          <td class="py-3 px-4 text-sm">Schema-as-truth · HTML = render(schema)</td>
+          <td class="py-3 px-4 text-xs text-ink-2">AI 操作天然是结构化的；HTML 字符串作为真相源会持续产生反向同步等运行时复杂度</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D2</td>
+          <td class="py-3 px-4 font-semibold">交互运行时</td>
+          <td class="py-3 px-4 text-sm">Alpine.js（schema 表达意图，渲染器翻译）</td>
+          <td class="py-3 px-4 text-xs text-ink-2">15KB / 声明式 / 无 build / 覆盖 L1-L3 全部交互场景；不绑死，未来可加 React renderer</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D3</td>
+          <td class="py-3 px-4 font-semibold">物料归属</td>
+          <td class="py-3 px-4 text-sm">公共 + 团队 + 私有 三级</td>
+          <td class="py-3 px-4 text-xs text-ink-2">用户希望物料能自己用、团队用、也能被官方公开收录</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D4</td>
+          <td class="py-3 px-4 font-semibold">风格切换</td>
+          <td class="py-3 px-4 text-sm">先选风格，画布中可试换 · 严格 token 引用</td>
+          <td class="py-3 px-4 text-xs text-ink-2">AI 在明确风格语境内推荐质量更高；物料不内联 hex 才能一键换风格</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D5</td>
+          <td class="py-3 px-4 font-semibold">Spec 形态</td>
+          <td class="py-3 px-4 text-sm">结构化 JSON · 不是 HTML</td>
+          <td class="py-3 px-4 text-xs text-ink-2">用户希望"无论用什么语言都能还原"，JSON 是唯一语言无关的载体</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D6</td>
+          <td class="py-3 px-4 font-semibold">Spec 来源</td>
+          <td class="py-3 px-4 text-sm">双向：自动推导 + 人工标注</td>
+          <td class="py-3 px-4 text-xs text-ink-2">完全自动会缺业务语义；完全手写工作量大；冲突时人工优先</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D7</td>
+          <td class="py-3 px-4 font-semibold">Cursor 集成</td>
+          <td class="py-3 px-4 text-sm">JSON 导出（底层）· MCP server（主线）· SDK（可选）</td>
+          <td class="py-3 px-4 text-xs text-ink-2">MCP 是 Anthropic 推的开放协议，已被 Cursor / Claude Code 等支持，是未来方向</td>
+        </tr>
+        <tr class="border-b border-surface-2">
+          <td class="py-3 px-4 font-mono text-xs">D8</td>
+          <td class="py-3 px-4 font-semibold">PRD 形态</td>
+          <td class="py-3 px-4 text-sm">PRD 也是 PageSchema · 复用渲染管线</td>
+          <td class="py-3 px-4 text-xs text-ink-2">不开发独立 PRD 工具；PRD 内容自动来自 Spec</td>
+        </tr>
+        <tr>
+          <td class="py-3 px-4 font-mono text-xs">D9</td>
+          <td class="py-3 px-4 font-semibold">Base 范围</td>
+          <td class="py-3 px-4 text-sm">Supabase-like 后端 · 远期 · v3+</td>
+          <td class="py-3 px-4 text-xs text-ink-2">v1/v2 不做；Spec 设计要预留接口，让未来对接顺畅</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============== 待回答的问题 ============== -->
+<section id="open" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-warn/20 text-warn flex items-center justify-center text-sm font-bold">08</span>
+    <h2 class="h-section">还没完全拍板 · 待回答</h2>
+  </div>
+
+  <p class="text-sm text-ink-2 leading-relaxed mb-5">
+    以下问题已在对话中提出但尚未完全闭环。<b>到对应实现阶段</b>需要回头确认。
+  </p>
+
+  <div class="space-y-3">
+
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Q1 · 物料预览图怎么生成？</div>
+        <span class="badge bg-warn/10 text-warn">阶段 8 决定</span>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-2">候选方案：</div>
+      <ul class="text-xs text-ink-2 space-y-1 ml-4">
+        <li>• <b>方案 A</b>：手工上传 — 简单但人工成本</li>
+        <li>• <b>方案 B</b>：Puppeteer 服务端渲染截图 — 自动但要维护服务</li>
+        <li>• <b>方案 C</b>：浏览器内 HTML2Canvas 截图 — 客户端但质量一般</li>
+      </ul>
+      <div class="text-xs text-ink-3 mt-2">用户当时回复："这个可以再讨论"，留待物料库阶段决定。</div>
+    </div>
+
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Q2 · 同一物料是否有"风格族变体"？</div>
+        <span class="badge bg-warn/10 text-warn">阶段 8 决定</span>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed">
+        当前方案：换风格时物料结构不变，仅 token 替换。
+        但有些场景（如 minimalist Hero ↔ playful Hero）结构差异较大，可能需要"同一物料 ID 在不同风格下挂不同 schema"。
+        <b>v1 不做</b>，等用户实际反馈再判断。
+      </div>
+    </div>
+
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Q3 · 浏览器文件系统具体用在哪？</div>
+        <span class="badge bg-warn/10 text-warn">用户提出但未明确</span>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed mb-2">用户问过"html 页面要在浏览器中开辟文件系统吗"，有三种可能解读：</div>
+      <ul class="text-xs text-ink-2 space-y-1 ml-4">
+        <li>• (a) 编辑器项目数据存浏览器本地（离线可用）</li>
+        <li>• (b) 生成的网站要有"上传文件 / 保存图片"功能</li>
+        <li>• (c) 在浏览器跑迷你 IDE 让用户改代码</li>
+      </ul>
+      <div class="text-xs text-ink-3 mt-2">技术选型差异大（IndexedDB / File API / OPFS+Service Worker+esbuild-wasm），需要用户在实际场景中再澄清。</div>
+    </div>
+
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Q4 · 团队物料的权限模型（RBAC）</div>
+        <span class="badge bg-warn/10 text-warn">阶段 8 决定</span>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed">
+        团队物料涉及"谁能看 / 谁能编辑 / 谁能发布"。决策需要等用户决定团队功能要做到多细（个人版起步 / 企业版需求）。
+      </div>
+    </div>
+
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold">Q5 · base 后端的具体范围</div>
+        <span class="badge bg-warn/10 text-warn">v3+ · 远期</span>
+      </div>
+      <div class="text-sm text-ink-2 leading-relaxed">
+        用户说"类似 Supabase"，但 Supabase 本身有：数据库 / 认证 / 存储 / Realtime / Edge Functions / Vector / 等。
+        SpecFlow 的 base 选哪些 MVP，等 v2 后期重新评估。
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============== 与其他文档的关系 ============== -->
+<section id="refs" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">09</span>
+    <h2 class="h-section">相关文档 · 各司其职</h2>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <a href="./canvas-architecture.html" class="block bg-white border border-surface-3 rounded-xl p-5 hover:border-brand-500 hover:shadow-sm transition-all">
+      <div class="badge bg-brand-100 text-brand-700 mb-3">技术实现</div>
+      <div class="font-semibold mb-1">canvas-architecture.html</div>
+      <div class="text-xs text-ink-2 leading-relaxed">SpecFlow 全产品的<b>架构设计方案</b>：分层架构、目录结构、数据流、4 类 Operation、状态切分、迁移路径 11 阶段、风险与权衡。聚焦"怎么做"。</div>
+    </a>
+    <div class="bg-brand-50 border-2 border-brand-300 rounded-xl p-5">
+      <div class="badge bg-brand-100 text-brand-700 mb-3">本文档</div>
+      <div class="font-semibold mb-1">product-vision.html</div>
+      <div class="text-xs text-ink-2 leading-relaxed">SpecFlow 的<b>产品愿景与心智模型</b>：用户原话、5 大支柱、关键产物、核心概念、用户旅程、决策记录、待答问题。聚焦"做什么 / 为什么"。</div>
+    </div>
+    <a href="./canvas-editor-implementation-plan.md" class="block bg-white border border-surface-3 rounded-xl p-5 hover:border-brand-500 hover:shadow-sm transition-all">
+      <div class="badge bg-surface-3 text-ink-1 mb-3">实现计划（旧）</div>
+      <div class="font-semibold mb-1">canvas-editor-implementation-plan.md</div>
+      <div class="text-xs text-ink-2 leading-relaxed">画布编辑器早期的实现计划（v1 文档前的版本）。可作历史参考。</div>
+    </a>
+    <a href="./schemas/" class="block bg-white border border-surface-3 rounded-xl p-5 hover:border-brand-500 hover:shadow-sm transition-all">
+      <div class="badge bg-surface-3 text-ink-1 mb-3">Schema</div>
+      <div class="font-semibold mb-1">schemas/</div>
+      <div class="text-xs text-ink-2 leading-relaxed">page-schema 与 ai-operation 的 JSON Schema 定义。会在 v2 迁移阶段重新组织。</div>
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer class="border-t border-surface-3 mt-20 py-8 bg-white">
+  <div class="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-ink-3">
+    <div>SpecFlow Product Vision · v1.0 · 整理自对话 · 2026-05-20</div>
+    <div>Living document · 决策变化时同步更新</div>
+  </div>
+</footer>
+
+</body>
+</html>
