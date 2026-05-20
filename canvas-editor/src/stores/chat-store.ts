@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
 import { useEditorStore, sendBridgeMessage, requestFromBridge, suppressNextIframeReload } from './editor-store'
-import type { Operation } from '../operations/types'
-import { validateOperationResponse } from '../operations/validate-operation'
 import type { SchemaOperation } from '../schema-operations/types'
 import { validateSchemaOperationResponse } from '../schema-operations/validate-schema-operation'
 
@@ -12,7 +10,7 @@ export interface ChatMessage {
   content: string
   timestamp: number
   htmlApplied?: boolean
-  appliedMode?: 'schema' | 'dom' | 'fragment' | 'diff'
+  appliedMode?: 'schema' | 'fragment' | 'diff'
 }
 
 interface ChatState {
@@ -38,28 +36,9 @@ interface SSEEvent {
   type: 'chunk' | 'applied' | 'done' | 'error'
   content?: string
   html?: string
-  operations?: Operation[]
   schemaOperations?: SchemaOperation[]
-  mode?: 'diff' | 'fragment' | 'operations' | 'schema-operations'
+  mode?: 'diff' | 'fragment' | 'schema-operations'
   message?: string
-}
-
-function toSchemaOperations(operations: Operation[]): SchemaOperation[] | null {
-  const schemaOperations: SchemaOperation[] = []
-
-  for (const operation of operations) {
-    if (operation.type === 'replaceText') {
-      schemaOperations.push({ type: 'replaceText', target: operation.target, text: operation.text })
-      continue
-    }
-    if (operation.type === 'setVariant') {
-      schemaOperations.push({ type: 'setVariant', target: operation.target, variant: operation.variant })
-      continue
-    }
-    return null
-  }
-
-  return schemaOperations
 }
 
 async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
@@ -209,48 +188,6 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
               useEditorStore.getState().applySchemaOperations(currentPage.id, schemaValidation.value.operations)
               htmlApplied = true
               appliedMode = 'schema'
-              break
-            }
-
-            if (event.operations) {
-              const validation = validateOperationResponse({ operations: event.operations })
-              if (!validation.ok || !validation.value) {
-                throw new Error(`Operation validation failed: ${validation.errors.join('; ')}`)
-              }
-
-              const currentPage = useEditorStore.getState().getActivePage()
-              const schemaOperations = currentPage?.source === 'schema' ? toSchemaOperations(validation.value.operations) : null
-              if (currentPage?.source === 'schema' && schemaOperations) {
-                const schemaValidation = validateSchemaOperationResponse({ operations: schemaOperations })
-                if (!schemaValidation.ok || !schemaValidation.value) {
-                  throw new Error(`Schema operation validation failed: ${schemaValidation.errors.join('; ')}`)
-                }
-                useEditorStore.getState().applySchemaOperations(currentPage.id, schemaValidation.value.operations)
-                htmlApplied = true
-                appliedMode = 'schema'
-                break
-              }
-
-              editorStore.pushUndo()
-              const result = await requestFromBridge<{ ok: boolean; errors?: string[] }>(
-                { type: 'execute-operations', operations: validation.value.operations },
-                'operation-result',
-              )
-              if (!result.ok) {
-                throw new Error(`Operation execution failed: ${(result.errors ?? []).join('; ')}`)
-              }
-              try {
-                const pageResp = await requestFromBridge<{ html: string }>(
-                  { type: 'get-page-html' },
-                  'page-html',
-                )
-                suppressNextIframeReload()
-                editorStore.updatePageHTML(page.id, pageResp.html)
-              } catch {
-                // visual update already applied via bridge
-              }
-              htmlApplied = true
-              appliedMode = 'dom'
               break
             }
             if (event.html) {

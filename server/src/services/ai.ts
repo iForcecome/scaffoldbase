@@ -175,55 +175,6 @@ export function extractHTML(text: string): string | null {
   return null
 }
 
-export function buildOperationSystemPrompt(): string {
-  return `你是 SpecFlow 画布编辑器的 AI 助手。用户会给你当前选中节点的语义信息、HTML 片段和修改指令。
-
-你必须优先返回 JSON，不要返回 Markdown，不要解释。
-
-返回格式：
-{
-  "operations": [
-    {
-      "type": "replaceText" | "setVariant" | "updateStyle" | "replaceClass",
-      ...
-    }
-  ]
-}
-
-可用操作：
-- replaceText: { "type": "replaceText", "target": string, "text": string }
-- setVariant: { "type": "setVariant", "target": string, "variant": string }
-- updateStyle: { "type": "updateStyle", "target": string, "styles": Record<string,string> }
-- replaceClass: { "type": "replaceClass", "target": string, "className": string }
-
-规则：
-- target 必须使用 selectedNode.id。
-- 如果用户要求"更紧凑/更宽松/更突出"，优先用 setVariant。
-- 只有没有合适 variant 时才用 updateStyle。
-- updateStyle 只能使用这些属性：display, flexDirection, justifyContent, alignItems, gap, padding, margin, width, height, minWidth, maxWidth, minHeight, maxHeight, backgroundColor, backgroundImage, backgroundSize, backgroundPosition, color, borderRadius, borderColor, borderWidth, boxShadow, fontSize, fontWeight, lineHeight, textAlign, opacity, gridTemplateColumns, gridTemplateRows。
-- 用户说"背景透明"时优先返回 { "backgroundColor": "transparent" }；用户说"整体透明/半透明"时才使用 opacity。
-- 对 Tailwind 旧页面做布局优化时，可以使用 replaceClass，但不要加入 script、事件处理、javascript: URL。
-- 不要返回 HTML。
-- 不要返回 JS。
-- 不要创建 script、onclick、javascript: URL。`
-}
-
-export function buildOperationUserPrompt(input: {
-  message: string
-  selectedNode: unknown
-  elementHtml: string
-}): string {
-  return `当前选中节点:
-${JSON.stringify(input.selectedNode, null, 2)}
-
-当前选中元素 HTML:
-\`\`\`html
-${input.elementHtml}
-\`\`\`
-
-修改指令: ${input.message}`
-}
-
 export function buildSchemaOperationSystemPrompt(): string {
   return `你是 SpecFlow schema-first 画布编辑器的 AI 助手。用户会给你 Page Schema、当前选中节点语义信息和修改指令。
 

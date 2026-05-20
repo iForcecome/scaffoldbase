@@ -7,14 +7,11 @@ import {
   buildDiffSystemPrompt,
   buildFullPageUserPrompt,
   buildFragmentSystemPrompt,
-  buildOperationSystemPrompt,
-  buildOperationUserPrompt,
   buildSchemaOperationSystemPrompt,
   buildSchemaOperationUserPrompt,
   extractDiffs,
   applyDiffs,
   extractHTML,
-  extractOperationResponse,
   extractSchemaOperationResponse,
   type ChatMessage,
 } from '../services/ai.js'
@@ -33,7 +30,6 @@ type ChatMode = {
   isSchemaMode: boolean
   isFragmentMode: boolean
   wantsLayoutRewrite: boolean
-  isOperationMode: boolean
 }
 
 function sendSSE(reply: { raw: { write: (data: string) => void } }, data: unknown) {
@@ -89,8 +85,7 @@ function resolveChatMode(body: ChatBody, page?: Page): ChatMode {
   const wantsLayoutRewrite = !!body.elementHtml &&
     body.elementHtml.length > 800 &&
     /布局|排版|优化|美化|重构|整体|间距|对齐|层次|视觉/.test(body.message)
-  const isOperationMode = !!body.elementHtml && !!body.selectedNode && !wantsLayoutRewrite
-  return { isSchemaMode, isFragmentMode, wantsLayoutRewrite, isOperationMode }
+  return { isSchemaMode, isFragmentMode, wantsLayoutRewrite }
 }
 
 function buildChatMessages(body: ChatBody, pageHtml: string, mode: ChatMode, page?: Page): ChatMessage[] {
@@ -103,20 +98,6 @@ function buildChatMessages(body: ChatBody, pageHtml: string, mode: ChatMode, pag
           message: body.message,
           pageSchema: body.pageSchema ?? page?.schema,
           selectedNode: body.selectedNode ?? { id: page?.id, label: page?.title, component: 'Page' },
-        }),
-      },
-    ]
-  }
-
-  if (mode.isOperationMode) {
-    return [
-      { role: 'system', content: buildOperationSystemPrompt() },
-      {
-        role: 'user',
-        content: buildOperationUserPrompt({
-          message: body.message,
-          selectedNode: body.selectedNode,
-          elementHtml: body.elementHtml ?? '',
         }),
       },
     ]
@@ -143,19 +124,6 @@ function resolveAppliedResult(fullContent: string, body: ChatBody, pageHtml: str
     const operationResponse = extractSchemaOperationResponse(fullContent)
     if (operationResponse) {
       return { didApply: true, event: { type: 'applied', schemaOperations: operationResponse.operations, mode: 'schema-operations' } }
-    }
-    return { didApply: false, event: null }
-  }
-
-  if (mode.isOperationMode) {
-    const operationResponse = extractOperationResponse(fullContent)
-    if (operationResponse) {
-      return { didApply: true, event: { type: 'applied', operations: operationResponse.operations, mode: 'operations' } }
-    }
-
-    const appliedHtml = extractHTML(fullContent)
-    if (appliedHtml) {
-      return { didApply: true, event: { type: 'applied', html: appliedHtml, mode: 'fragment' } }
     }
     return { didApply: false, event: null }
   }

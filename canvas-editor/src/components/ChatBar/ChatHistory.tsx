@@ -91,12 +91,10 @@ export function ChatHistory({ onClose }: { onClose: () => void }) {
   )
 }
 
-function formatAppliedMode(mode: 'schema' | 'dom' | 'fragment' | 'diff'): string {
+function formatAppliedMode(mode: 'schema' | 'fragment' | 'diff'): string {
   switch (mode) {
     case 'schema':
       return 'Schema'
-    case 'dom':
-      return 'DOM'
     case 'fragment':
       return 'HTML 片段'
     case 'diff':
