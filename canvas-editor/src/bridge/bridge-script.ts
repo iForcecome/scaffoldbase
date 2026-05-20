@@ -464,16 +464,6 @@ export function getBridgeScript(): string {
     var data = e.data;
     if (!data || !data.type) return;
     switch (data.type) {
-      case 'update-style': {
-        var el = getElementById(data.id);
-        if (el) {
-          Object.assign(el.style, data.styles);
-          var rect = el.getBoundingClientRect();
-          parent.postMessage({ type: 'element-rect-update', id: data.id, rect: rectToObj(rect) }, '*');
-          sendTree();
-        }
-        break;
-      }
       case 'execute-operations': {
         var operations = Array.isArray(data.operations) ? data.operations : [];
         var errors = [];
@@ -538,24 +528,6 @@ export function getBridgeScript(): string {
             parent.postMessage({ type: 'element-replaced', id: newId, rect: rectToObj(newRect) }, '*');
           }
         }
-        break;
-      }
-      case 'get-page-html': {
-        var clone = document.documentElement.cloneNode(true);
-        clone.querySelectorAll('[' + BRIDGE_ATTR + ']').forEach(function(n) {
-          var id = n.getAttribute(BRIDGE_ATTR);
-          if (id && /^sf-\\d+$/.test(id)) n.removeAttribute(BRIDGE_ATTR);
-        });
-        var bridgeScripts = clone.querySelectorAll('script');
-        bridgeScripts.forEach(function(s) {
-          if (s.textContent && s.textContent.indexOf('data-sf-id') >= 0) s.remove();
-        });
-        clone.querySelectorAll('style').forEach(function(s) {
-          if (s.textContent && (s.textContent.indexOf('tailwindcss v') >= 0 || s.textContent.indexOf('--tw-border-spacing') >= 0)) {
-            s.remove();
-          }
-        });
-        parent.postMessage({ type: 'page-html', html: '<!DOCTYPE html>\\n' + clone.outerHTML }, '*');
         break;
       }
       case 'start-edit': {

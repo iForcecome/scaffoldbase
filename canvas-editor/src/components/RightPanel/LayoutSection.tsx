@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { useEditorStore } from '../../stores/editor-store'
 
 function parsePx(raw: string | undefined): string {
   if (!raw) return '0'
@@ -18,6 +18,8 @@ export function LayoutSection() {
   const selectedIds = useEditorStore(s => s.selectedIds)
   const selectedElements = useEditorStore(s => s.selectedElements)
   const styles = useEditorStore(s => s.selectedStyles)
+  const activePageId = useEditorStore(s => s.activePageId)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 
   const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
   const rect = selectedId ? selectedElements[selectedId]?.rect : null
@@ -41,9 +43,8 @@ export function LayoutSection() {
   }, [styles?.padding])
 
   const updateStyle = (prop: string, value: string) => {
-    if (!selectedId) return
-    sendBridgeMessage({ type: 'update-style', id: selectedId, styles: { [prop]: value } })
-    sendBridgeMessage({ type: 'get-computed-style', id: selectedId })
+    if (!selectedId || !activePageId) return
+    applySchemaOperations(activePageId, [{ type: 'updateStyle', target: selectedId, styles: { [prop]: value } }])
   }
 
   const commitW = () => {

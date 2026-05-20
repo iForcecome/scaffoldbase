@@ -4,6 +4,7 @@ export type SchemaOperation =
   | SchemaReplaceTextOperation
   | SchemaSetVariantOperation
   | SchemaUpdatePropsOperation
+  | SchemaUpdateStyleOperation
   | SchemaInsertComponentOperation
   | SchemaRemoveNodeOperation
   | SchemaMoveNodeOperation
@@ -24,6 +25,12 @@ export interface SchemaUpdatePropsOperation {
   type: 'updateProps'
   target: string
   props: Record<string, unknown>
+}
+
+export interface SchemaUpdateStyleOperation {
+  type: 'updateStyle'
+  target: string
+  styles: Record<string, string>
 }
 
 export interface SchemaInsertComponentOperation {

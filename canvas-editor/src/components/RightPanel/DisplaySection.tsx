@@ -1,4 +1,4 @@
-import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { useEditorStore } from '../../stores/editor-store'
 
 const displayModes = ['flex', 'grid', 'block', 'none'] as const
 const directions = ['row', 'column'] as const
@@ -7,6 +7,8 @@ const alignMap = ['flex-start', 'center', 'flex-end']
 export function DisplaySection() {
   const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
   const styles = useEditorStore(s => s.selectedStyles)
+  const activePageId = useEditorStore(s => s.activePageId)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 
   const display = styles?.display ?? 'flex'
   const direction = styles?.flexDirection ?? 'row'
@@ -16,8 +18,8 @@ export function DisplaySection() {
   const alignIndex = alignMap.indexOf(alignItems)
 
   const updateStyle = (prop: string, value: string) => {
-    if (!selectedId) return
-    sendBridgeMessage({ type: 'update-style', id: selectedId, styles: { [prop]: value } })
+    if (!selectedId || !activePageId) return
+    applySchemaOperations(activePageId, [{ type: 'updateStyle', target: selectedId, styles: { [prop]: value } }])
   }
 
   const justifyLabel = justifyContent.replace('space-', '').replace('flex-', '')

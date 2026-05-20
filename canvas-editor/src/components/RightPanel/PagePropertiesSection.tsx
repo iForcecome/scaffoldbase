@@ -10,6 +10,7 @@ export function PagePropertiesSection() {
   const pages = useEditorStore(s => s.pages)
   const renamePage = useEditorStore(s => s.renamePage)
   const upgradePageToSchema = useEditorStore(s => s.upgradePageToSchema)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
   const deviceWidth = useEditorStore(s => s.getDeviceWidth())
   const setCustomWidth = useEditorStore(s => s.setCustomWidth)
 
@@ -61,7 +62,8 @@ export function PagePropertiesSection() {
   }, [activePageId, syncFromBridge])
 
   const updateBodyStyle = (prop: string, value: string) => {
-    sendBridgeMessage({ type: 'update-style', id: BODY_SF_ID, styles: { [prop]: value } })
+    if (!activePageId) return
+    applySchemaOperations(activePageId, [{ type: 'updateStyle', target: activePageId, styles: { [prop]: value } }])
   }
 
   const commitTitle = () => {
@@ -73,9 +75,9 @@ export function PagePropertiesSection() {
   const commitMinWidth = () => {
     const v = minWidth.trim()
     if (v === '' || v === '0') {
-      updateBodyStyle('min-width', '')
+      updateBodyStyle('minWidth', '')
     } else {
-      updateBodyStyle('min-width', v + 'px')
+      updateBodyStyle('minWidth', v + 'px')
     }
   }
 
@@ -88,7 +90,7 @@ export function PagePropertiesSection() {
 
   const handleBgChange = (value: string) => {
     setBgColor(value)
-    updateBodyStyle('background-color', value)
+    updateBodyStyle('backgroundColor', value)
   }
 
   const handleDownload = async (type: 'spec_json' | 'html_prd', scope: 'page' | 'project', pageId?: string | null) => {
@@ -180,7 +182,7 @@ export function PagePropertiesSection() {
             className="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 outline-none focus:ring-1 focus:ring-brand-400"
             value={bgColor}
             onChange={e => setBgColor(e.target.value)}
-            onBlur={() => updateBodyStyle('background-color', bgColor)}
+            onBlur={() => updateBodyStyle('backgroundColor', bgColor)}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
           />
         </div>

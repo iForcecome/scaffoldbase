@@ -21,12 +21,23 @@ function toKebab(value: string): string {
     .toLowerCase()
 }
 
+function renderInlineStyle(style: unknown): string {
+  if (!style || typeof style !== 'object' || Array.isArray(style)) return ''
+  const entries: string[] = []
+  for (const [prop, value] of Object.entries(style as Record<string, unknown>)) {
+    if (typeof value !== 'string' || !value) continue
+    entries.push(`${toKebab(prop)}: ${escapeAttr(value)}`)
+  }
+  return entries.join('; ')
+}
+
 function renderAttrs(node: ComponentNode, extraClass = ''): string {
   const classes = [`sf-${toKebab(node.component)}`]
   const variant = node.variant || 'default'
   if (variant) classes.push(`sf-${toKebab(node.component)}--${toKebab(variant)}`)
   if (extraClass) classes.push(extraClass)
 
+  const styleStr = renderInlineStyle(node.props.style)
   const attrs = [
     `data-sf-id="${escapeAttr(node.id)}"`,
     `data-sf-component="${escapeAttr(node.component)}"`,
@@ -34,6 +45,7 @@ function renderAttrs(node: ComponentNode, extraClass = ''): string {
     node.label ? `data-sf-label="${escapeAttr(node.label)}"` : '',
     node.variant ? `data-sf-variant="${escapeAttr(node.variant)}"` : '',
     `class="${classes.filter(Boolean).join(' ')}"`,
+    styleStr ? `style="${styleStr}"` : '',
   ].filter(Boolean)
 
   return attrs.join(' ')

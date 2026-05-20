@@ -1,16 +1,18 @@
-import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { useEditorStore } from '../../stores/editor-store'
 
 export function TypographySection() {
   const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
   const styles = useEditorStore(s => s.selectedStyles)
+  const activePageId = useEditorStore(s => s.activePageId)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 
   const fontSize = styles?.fontSize ?? ''
   const fontWeight = styles?.fontWeight ?? ''
   const color = styles?.color ?? '#0f172a'
 
   const updateStyle = (prop: string, value: string) => {
-    if (!selectedId) return
-    sendBridgeMessage({ type: 'update-style', id: selectedId, styles: { [prop]: value } })
+    if (!selectedId || !activePageId) return
+    applySchemaOperations(activePageId, [{ type: 'updateStyle', target: selectedId, styles: { [prop]: value } }])
   }
 
   const sizeLabel = fontSize ? `${parseFloat(fontSize)}px` : '--'

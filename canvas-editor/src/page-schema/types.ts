@@ -27,6 +27,7 @@ export interface PageSchema {
       mutedTextColor?: string
       fontFamily?: string
     }
+    style?: Record<string, string>
     sections: ComponentNode[]
   }
 }

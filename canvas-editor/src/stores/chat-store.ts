@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
-import { useEditorStore, sendBridgeMessage, requestFromBridge, suppressNextIframeReload } from './editor-store'
+import { useEditorStore, requestFromBridge } from './editor-store'
 import type { SchemaOperation } from '../schema-operations/types'
 import { validateSchemaOperationResponse } from '../schema-operations/validate-schema-operation'
 
@@ -191,21 +191,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
             }
             if (event.html) {
               editorStore.pushUndo()
-              if (event.mode === 'fragment' && fragmentId) {
-                sendBridgeMessage({ type: 'replace-element-html', id: fragmentId, html: event.html })
-                try {
-                  const pageResp = await requestFromBridge<{ html: string }>(
-                    { type: 'get-page-html' },
-                    'page-html',
-                  )
-                  suppressNextIframeReload()
-                  editorStore.updatePageHTML(page.id, pageResp.html)
-                } catch {
-                  // visual update already applied via bridge
-                }
-              } else {
-                editorStore.updatePageHTML(page.id, event.html)
-              }
+              editorStore.updatePageHTML(page.id, event.html)
               htmlApplied = true
               appliedMode = event.mode === 'diff' ? 'diff' : 'fragment'
             }

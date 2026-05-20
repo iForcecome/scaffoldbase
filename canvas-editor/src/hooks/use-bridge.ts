@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditorStore, setBridgeSender, syncHTMLFromIframe, consumePendingReveal } from '../stores/editor-store'
+import { useEditorStore, setBridgeSender, consumePendingReveal } from '../stores/editor-store'
 import { deriveSpecPath } from '../utils/spec-path'
 
 function handleIframeWheel(data: Record<string, unknown>) {
@@ -42,8 +42,11 @@ export function useBridge() {
     switch (data.type) {
       case 'ready': {
         sendToIframe({ type: 'request-tree' })
-        const currentMode = useEditorStore.getState().activeTool === 'preview' ? 'preview' : 'design'
+        const store = useEditorStore.getState()
+        const currentMode = store.activeTool === 'preview' ? 'preview' : 'design'
         sendToIframe({ type: 'set-mode', mode: currentMode })
+        const lastSelected = store.selectedIds[store.selectedIds.length - 1]
+        if (lastSelected) sendToIframe({ type: 'get-computed-style', id: lastSelected })
         break
       }
       case 'dom-tree':
@@ -96,7 +99,6 @@ export function useBridge() {
         if (store.selectedIds.includes(data.id as string) && data.rect) {
           updateSelectedRect(data.id as string, data.rect as any)
         }
-        syncHTMLFromIframe()
         break
       }
       case 'element-replaced':
@@ -105,7 +107,6 @@ export function useBridge() {
         }
         break
       case 'reorder-done':
-        syncHTMLFromIframe()
         break
       case 'element-hover': {
         const store = useEditorStore.getState()
@@ -127,7 +128,6 @@ export function useBridge() {
         break
       case 'edit-done': {
         useEditorStore.getState().setEditingText(null)
-        syncHTMLFromIframe(100)
         break
       }
       case 'navigate-page': {

@@ -184,7 +184,7 @@ export function buildSchemaOperationSystemPrompt(): string {
 {
   "operations": [
     {
-      "type": "replaceText" | "setVariant" | "updateProps" | "insertComponent" | "removeNode" | "moveNode",
+      "type": "replaceText" | "setVariant" | "updateProps" | "updateStyle" | "insertComponent" | "removeNode" | "moveNode",
       ...
     }
   ]
@@ -194,6 +194,7 @@ export function buildSchemaOperationSystemPrompt(): string {
 - replaceText: { "type": "replaceText", "target": string, "text": string }
 - setVariant: { "type": "setVariant", "target": string, "variant": string }
 - updateProps: { "type": "updateProps", "target": string, "props": Record<string,unknown> }
+- updateStyle: { "type": "updateStyle", "target": string, "styles": Record<string,string> }
 - insertComponent: { "type": "insertComponent", "target": string, "position": "before" | "after" | "inside:start" | "inside:end", "node": ComponentNode }
 - removeNode: { "type": "removeNode", "target": string }
 - moveNode: { "type": "moveNode", "target": string, "reference": string, "position": "before" | "after" | "inside:start" | "inside:end" }
@@ -203,11 +204,13 @@ export function buildSchemaOperationSystemPrompt(): string {
 - 改文字优先用 replaceText。
 - 改组件视觉密度或强调程度优先用 setVariant。
 - 改组件结构化内容用 updateProps，不要返回 HTML 字符串。
+- updateStyle 只能使用这些 camelCase 属性: display, flexDirection, justifyContent, alignItems, gap, padding, margin, width, height, minWidth, maxWidth, minHeight, maxHeight, backgroundColor, backgroundImage, backgroundSize, backgroundPosition, color, borderRadius, borderColor, borderWidth, boxShadow, fontSize, fontWeight, lineHeight, textAlign, opacity, gridTemplateColumns, gridTemplateRows。
+- 当用户改的是页面整体（如背景、内边距）时，target 用 page.id；当改单个组件样式时，target 用该节点的 id。
 - 已知组件包括 PageHeader, FilterBar, DataTable, Button, FormSection, Modal, EmptyState, Navigation, Section, Region。
 - Button variant 只能用 default, primary, compact。
 - PageHeader/FilterBar/DataTable 可用 default, compact, spacious。
 - FormSection/Modal/EmptyState 可用 default, compact。
-- 不要生成 script、onclick、javascript: URL、style 字符串或 Tailwind class。
+- 不要生成 script、onclick、javascript: URL 或 Tailwind class。
 - 每次最多返回 5 个操作，越精确越好。`
 }
 

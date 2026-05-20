@@ -648,24 +648,3 @@ export const useEditorStore = create<EditorState & EditorActions>()(
   }))
 )
 
-let _syncTimer: ReturnType<typeof setTimeout> | null = null
-
-export function syncHTMLFromIframe(delay = 600) {
-  if (_syncTimer) clearTimeout(_syncTimer)
-  _syncTimer = setTimeout(async () => {
-    const state = useEditorStore.getState()
-    if (!state.projectId || !state.activePageId) return
-    try {
-      const resp = await requestFromBridge<{ html: string }>(
-        { type: 'get-page-html' },
-        'page-html',
-      )
-      const currentPage = state.pages.find(p => p.id === state.activePageId)
-      if (currentPage && currentPage.html !== resp.html) {
-        state.pushUndo()
-        suppressNextIframeReload()
-        state.updatePageHTML(state.activePageId, resp.html)
-      }
-    } catch { /* iframe not ready */ }
-  }, delay)
-}

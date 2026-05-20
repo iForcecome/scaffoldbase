@@ -43,6 +43,20 @@ function renderThemeCss(page: PageSchema['page']): string {
 </style>`
 }
 
+function toKebab(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[\s_]+/g, '-').toLowerCase()
+}
+
+function renderInlineStyle(style: unknown): string {
+  if (!style || typeof style !== 'object' || Array.isArray(style)) return ''
+  const entries: string[] = []
+  for (const [prop, value] of Object.entries(style as Record<string, unknown>)) {
+    if (typeof value !== 'string' || !value) continue
+    entries.push(`${toKebab(prop)}: ${escapeHtml(value).replace(/`/g, '&#96;')}`)
+  }
+  return entries.join('; ')
+}
+
 function renderPageShell(page: PageSchema['page'], body: string): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -99,7 +113,7 @@ ${renderDesignSystemCss()}
 ${renderThemeCss(page)}
 </head>
 <body>
-  <main class="sf-page-shell sf-page-shell--${escapeHtml(page.layout)}" data-sf-page-id="${escapeHtml(page.id)}" data-sf-page-title="${escapeHtml(page.title)}">
+  <main class="sf-page-shell sf-page-shell--${escapeHtml(page.layout)}" data-sf-page-id="${escapeHtml(page.id)}" data-sf-page-title="${escapeHtml(page.title)}"${(() => { const s = renderInlineStyle(page.style); return s ? ` style="${s}"` : '' })()}>
     ${body}
   </main>
 </body>

@@ -50,6 +50,34 @@ export function applySchemaOperation(schema: PageSchema, operation: SchemaOperat
       if (!nodeId) return schema
       return updateSchemaNode(schema, nodeId, node => ({ ...node, props: { ...node.props, ...operation.props } }))
     }
+    case 'updateStyle': {
+      const mergeStyles = (existing: Record<string, string> | undefined) => {
+        const merged: Record<string, string> = { ...(existing ?? {}) }
+        for (const [prop, value] of Object.entries(operation.styles)) {
+          if (value === '') delete merged[prop]
+          else merged[prop] = value
+        }
+        return merged
+      }
+      if (operation.target === schema.page.id) {
+        const merged = mergeStyles(schema.page.style)
+        const hasStyle = Object.keys(merged).length > 0
+        const nextPage = { ...schema.page }
+        if (hasStyle) nextPage.style = merged
+        else delete nextPage.style
+        return { ...schema, page: nextPage }
+      }
+      const nodeId = resolveSchemaNodeId(schema, operation.target)
+      if (!nodeId) return schema
+      return updateSchemaNode(schema, nodeId, node => {
+        const merged = mergeStyles(node.props.style as Record<string, string> | undefined)
+        const hasStyle = Object.keys(merged).length > 0
+        const nextProps = { ...node.props }
+        if (hasStyle) nextProps.style = merged
+        else delete nextProps.style
+        return { ...node, props: nextProps }
+      })
+    }
     case 'insertComponent':
       return findSchemaNode(schema, operation.target)
         ? insertSchemaNode(schema, operation.target, operation.position, operation.node)

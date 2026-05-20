@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useEditorStore, sendBridgeMessage } from '../../stores/editor-store'
+import { useEditorStore } from '../../stores/editor-store'
 
 function rgbToHex(rgb: string): string {
   const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
@@ -11,6 +11,8 @@ function rgbToHex(rgb: string): string {
 export function AppearanceSection() {
   const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
   const styles = useEditorStore(s => s.selectedStyles)
+  const activePageId = useEditorStore(s => s.activePageId)
+  const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 
   const [bgColor, setBgColor] = useState('')
   const [borderRadius, setBorderRadius] = useState('')
@@ -28,8 +30,8 @@ export function AppearanceSection() {
   }, [styles])
 
   const updateStyle = (prop: string, value: string) => {
-    if (!selectedId) return
-    sendBridgeMessage({ type: 'update-style', id: selectedId, styles: { [prop]: value } })
+    if (!selectedId || !activePageId) return
+    applySchemaOperations(activePageId, [{ type: 'updateStyle', target: selectedId, styles: { [prop]: value } }])
   }
 
   return (
@@ -42,13 +44,13 @@ export function AppearanceSection() {
             type="color"
             className="w-6 h-6 rounded border border-surface-3 cursor-pointer p-0.5 shrink-0"
             value={bgColor.startsWith('#') ? bgColor : '#ffffff'}
-            onChange={e => { setBgColor(e.target.value); updateStyle('background-color', e.target.value) }}
+            onChange={e => { setBgColor(e.target.value); updateStyle('backgroundColor',e.target.value) }}
           />
           <input
             className="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 outline-none focus:ring-1 focus:ring-brand-400 w-0"
             value={bgColor}
             onChange={e => setBgColor(e.target.value)}
-            onBlur={() => updateStyle('background-color', bgColor)}
+            onBlur={() => updateStyle('backgroundColor',bgColor)}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             placeholder="transparent"
           />
@@ -60,7 +62,7 @@ export function AppearanceSection() {
             className="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 outline-none focus:ring-1 focus:ring-brand-400 w-0"
             value={borderRadius}
             onChange={e => setBorderRadius(e.target.value)}
-            onBlur={() => updateStyle('border-radius', borderRadius ? borderRadius + 'px' : '0')}
+            onBlur={() => updateStyle('borderRadius', borderRadius ? borderRadius + 'px' : '0')}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             placeholder="0"
           />
@@ -72,7 +74,7 @@ export function AppearanceSection() {
             className="w-12 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 outline-none focus:ring-1 focus:ring-brand-400"
             value={borderWidth}
             onChange={e => setBorderWidth(e.target.value)}
-            onBlur={() => updateStyle('border-width', borderWidth ? borderWidth + 'px' : '0')}
+            onBlur={() => updateStyle('borderWidth', borderWidth ? borderWidth + 'px' : '0')}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             placeholder="0"
           />
@@ -80,13 +82,13 @@ export function AppearanceSection() {
             type="color"
             className="w-6 h-6 rounded border border-surface-3 cursor-pointer p-0.5 shrink-0"
             value={borderColor.startsWith('#') ? borderColor : '#000000'}
-            onChange={e => { setBorderColor(e.target.value); updateStyle('border-color', e.target.value) }}
+            onChange={e => { setBorderColor(e.target.value); updateStyle('borderColor', e.target.value) }}
           />
           <input
             className="flex-1 bg-surface-1 rounded-md px-2 py-1.5 text-xs font-mono text-ink-1 outline-none focus:ring-1 focus:ring-brand-400 w-0"
             value={borderColor}
             onChange={e => setBorderColor(e.target.value)}
-            onBlur={() => updateStyle('border-color', borderColor)}
+            onBlur={() => updateStyle('borderColor', borderColor)}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             placeholder="#000000"
           />

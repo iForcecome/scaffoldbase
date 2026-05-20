@@ -6,6 +6,40 @@ const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
 const COMPONENT_RE = /^[A-Z][a-zA-Z0-9]*$/
 const POSITIONS = new Set(['before', 'after', 'inside:start', 'inside:end'])
 
+export const SAFE_STYLE_PROPS = new Set([
+  'display',
+  'flexDirection',
+  'justifyContent',
+  'alignItems',
+  'gap',
+  'padding',
+  'margin',
+  'width',
+  'height',
+  'minWidth',
+  'maxWidth',
+  'minHeight',
+  'maxHeight',
+  'backgroundColor',
+  'backgroundImage',
+  'backgroundSize',
+  'backgroundPosition',
+  'color',
+  'borderRadius',
+  'borderColor',
+  'borderWidth',
+  'boxShadow',
+  'fontSize',
+  'fontWeight',
+  'lineHeight',
+  'textAlign',
+  'opacity',
+  'gridTemplateColumns',
+  'gridTemplateRows',
+])
+
+const UNSAFE_STYLE_VALUE = /expression\(|url\s*\(\s*javascript:/i
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -85,6 +119,23 @@ function validateOperation(operation: unknown, index: number, errors: string[]):
       validateId(operation.target, `${path}.target`, errors)
       if (!isRecord(operation.props) || !isJsonSafe(operation.props)) {
         errors.push(`${path}.props must be a JSON-safe object`)
+      }
+      return true
+    case 'updateStyle':
+      validateId(operation.target, `${path}.target`, errors)
+      if (!isRecord(operation.styles)) {
+        errors.push(`${path}.styles must be an object`)
+      } else {
+        for (const [prop, value] of Object.entries(operation.styles)) {
+          if (!SAFE_STYLE_PROPS.has(prop)) {
+            errors.push(`${path}.styles.${prop} is not allowed`)
+          }
+          if (typeof value !== 'string' || value.length > 160) {
+            errors.push(`${path}.styles.${prop} must be a string under 160 chars`)
+          } else if (UNSAFE_STYLE_VALUE.test(value)) {
+            errors.push(`${path}.styles.${prop} contains unsafe CSS`)
+          }
+        }
       }
       return true
     case 'insertComponent':

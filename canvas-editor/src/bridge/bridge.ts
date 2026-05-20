@@ -158,16 +158,6 @@ window.addEventListener('message', (e) => {
   if (!data || !data.type) return
 
   switch (data.type) {
-    case 'update-style': {
-      const el = getElementById(data.id) as HTMLElement | null
-      if (el) {
-        Object.assign(el.style, data.styles)
-        const rect = el.getBoundingClientRect()
-        parent.postMessage({ type: 'element-rect-update', id: data.id, rect: rectToObj(rect) }, '*')
-        sendTree()
-      }
-      break
-    }
     case 'update-text': {
       const el = getElementById(data.id)
       if (el) {
