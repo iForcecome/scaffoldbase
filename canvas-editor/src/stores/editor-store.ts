@@ -8,6 +8,7 @@ import { applySchemaOperations as applySchemaOperationList } from '../schema-ope
 import type { SchemaOperation } from '../schema-operations/types'
 import { useViewportStore } from './viewport-store'
 import { useSelectionStore } from './selection-store'
+import { useHistoryStore, type PageSnapshot } from './history-store'
 
 export type { Device } from './viewport-store'
 export type { DOMNode, SelectedElement } from './selection-store'
@@ -21,18 +22,11 @@ export interface Page {
   origin?: unknown
 }
 
-interface PageSnapshot {
-  html: string
-  schema?: PageSchema | null
-}
-
 interface EditorState {
   projectId: string | null
   projectName: string
   pages: Page[]
   activePageId: string
-  undoStack: PageSnapshot[]
-  redoStack: PageSnapshot[]
   saving: boolean
   dirtyPageIds: string[]
 }
@@ -158,8 +152,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     projectName: '',
     pages: [],
     activePageId: '',
-    undoStack: [],
-    redoStack: [],
     saving: false,
     dirtyPageIds: [],
 
@@ -177,9 +169,8 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           s.activePageId = s.pages[0]?.id ?? ''
           s.dirtyPageIds = []
         }
-        s.undoStack = []
-        s.redoStack = []
       })
+      useHistoryStore.getState().reset()
       useSelectionStore.getState().resetForPageChange()
       useViewportStore.getState().resetViewport()
     },
@@ -200,54 +191,59 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       }
     }),
 
-    applySchemaOperations: (pageId, operations) => set((s) => {
-      const page = s.pages.find(p => p.id === pageId)
-      if (!page || !page.schema || operations.length === 0) return
+    applySchemaOperations: (pageId, operations) => {
+      let snapshot: PageSnapshot | null = null
+      set((s) => {
+        const page = s.pages.find(p => p.id === pageId)
+        if (!page || !page.schema || operations.length === 0) return
+        snapshot = createPageSnapshot(page)
 
-      s.undoStack.push(createPageSnapshot(page))
-      s.redoStack = []
+        const nextSchema = applySchemaOperationList(page.schema, operations)
+        const validation = validatePageSchema(nextSchema)
+        if (!validation.ok) {
+          throw new Error(`Invalid page schema after operation: ${validation.errors.join('; ')}`)
+        }
+        page.schema = nextSchema
+        page.html = renderPageSchemaToHtml(nextSchema)
+        if (!s.dirtyPageIds.includes(pageId)) {
+          s.dirtyPageIds.push(pageId)
+        }
+      })
+      if (snapshot) useHistoryStore.getState().pushUndo(snapshot)
+    },
 
-      const nextSchema = applySchemaOperationList(page.schema, operations)
-      const validation = validatePageSchema(nextSchema)
-      if (!validation.ok) {
-        throw new Error(`Invalid page schema after operation: ${validation.errors.join('; ')}`)
-      }
-      page.schema = nextSchema
-      page.html = renderPageSchemaToHtml(nextSchema)
-      if (!s.dirtyPageIds.includes(pageId)) {
-        s.dirtyPageIds.push(pageId)
-      }
-    }),
+    pushUndo: () => {
+      const page = get().pages.find(p => p.id === get().activePageId)
+      if (page) useHistoryStore.getState().pushUndo(createPageSnapshot(page))
+    },
 
-    pushUndo: () => set((s) => {
-      const page = s.pages.find(p => p.id === s.activePageId)
-      if (page) {
-        s.undoStack.push(createPageSnapshot(page))
-        s.redoStack = []
-      }
-    }),
+    undo: () => {
+      const popped = useHistoryStore.getState().popUndo()
+      if (!popped) return
+      set((s) => {
+        const page = s.pages.find(p => p.id === s.activePageId)
+        if (!page) return
+        useHistoryStore.getState().pushRedo(createPageSnapshot(page))
+        restorePageSnapshot(page, popped)
+        if (!s.dirtyPageIds.includes(s.activePageId)) {
+          s.dirtyPageIds.push(s.activePageId)
+        }
+      })
+    },
 
-    undo: () => set((s) => {
-      if (s.undoStack.length === 0) return
-      const page = s.pages.find(p => p.id === s.activePageId)
-      if (!page) return
-      s.redoStack.push(createPageSnapshot(page))
-      restorePageSnapshot(page, s.undoStack.pop()!)
-      if (!s.dirtyPageIds.includes(s.activePageId)) {
-        s.dirtyPageIds.push(s.activePageId)
-      }
-    }),
-
-    redo: () => set((s) => {
-      if (s.redoStack.length === 0) return
-      const page = s.pages.find(p => p.id === s.activePageId)
-      if (!page) return
-      s.undoStack.push(createPageSnapshot(page))
-      restorePageSnapshot(page, s.redoStack.pop()!)
-      if (!s.dirtyPageIds.includes(s.activePageId)) {
-        s.dirtyPageIds.push(s.activePageId)
-      }
-    }),
+    redo: () => {
+      const popped = useHistoryStore.getState().popRedo()
+      if (!popped) return
+      set((s) => {
+        const page = s.pages.find(p => p.id === s.activePageId)
+        if (!page) return
+        useHistoryStore.getState().pushUndo(createPageSnapshot(page))
+        restorePageSnapshot(page, popped)
+        if (!s.dirtyPageIds.includes(s.activePageId)) {
+          s.dirtyPageIds.push(s.activePageId)
+        }
+      })
+    },
 
     getActivePage: () => get().pages.find(p => p.id === get().activePageId),
 
@@ -315,6 +311,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     upgradePageToSchema: (id) => {
       let upgraded = false
+      let snapshot: PageSnapshot | null = null
       const domTree = useSelectionStore.getState().domTree
       set((s) => {
         const page = s.pages.find(p => p.id === id)
@@ -324,8 +321,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         const schema = buildPageSchemaFromDomTree(id, page.title, domTree)
         if (!schema) return
 
-        s.undoStack.push(createPageSnapshot(page))
-        s.redoStack = []
+        snapshot = createPageSnapshot(page)
         page.schema = schema
         page.html = renderPageSchemaToHtml(schema)
         if (!s.dirtyPageIds.includes(id)) {
@@ -333,6 +329,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         }
         upgraded = true
       })
+      if (snapshot) useHistoryStore.getState().pushUndo(snapshot)
       return upgraded
     },
 

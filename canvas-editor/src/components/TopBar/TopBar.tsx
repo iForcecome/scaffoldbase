@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEditorStore } from '../../stores/editor-store'
 import { useToolStore, type Tool } from '../../stores/tool-store'
 import { useViewportStore, type Device } from '../../stores/viewport-store'
+import { useHistoryStore } from '../../stores/history-store'
 
 const tools: { id: Tool; icon: typeof MousePointer2; label: string; key: string }[] = [
   { id: 'select', icon: MousePointer2, label: '选择', key: 'V' },
@@ -34,8 +35,8 @@ export function TopBar() {
   const setDevice = useViewportStore(s => s.setDevice)
   const undo = useEditorStore(s => s.undo)
   const redo = useEditorStore(s => s.redo)
-  const undoStack = useEditorStore(s => s.undoStack)
-  const redoStack = useEditorStore(s => s.redoStack)
+  const undoStack = useHistoryStore(s => s.undoStack)
+  const redoStack = useHistoryStore(s => s.redoStack)
   const dirtyPageIds = useEditorStore(s => s.dirtyPageIds)
   const saving = useEditorStore(s => s.saving)
   const save = useEditorStore(s => s.save)
