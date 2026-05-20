@@ -5,14 +5,15 @@ import { LeftPanel } from '../components/LeftPanel/LeftPanel'
 import { CanvasArea } from '../components/Canvas/CanvasArea'
 import { RightPanel } from '../components/RightPanel/RightPanel'
 import { useEditorStore } from '../stores/editor-store'
+import { useToolStore } from '../stores/tool-store'
 import { useChatStore } from '../stores/chat-store'
 import { api } from '../services/api'
 
 export default function EditorPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const isPreview = useEditorStore(s => s.activeTool === 'preview')
-  const setTool = useEditorStore(s => s.setTool)
+  const isPreview = useToolStore(s => s.activeTool === 'preview')
+  const setTool = useToolStore(s => s.setTool)
   const loadProject = useEditorStore(s => s.loadProject)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,13 +62,13 @@ export default function EditorPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const store = useEditorStore.getState()
+      const tool = useToolStore.getState()
       if (e.key === 'p' || e.key === 'P') {
-        if (store.activeTool !== 'preview') {
+        if (tool.activeTool !== 'preview') {
           setTool('preview')
         }
       }
-      if (e.key === 'Escape' && store.activeTool === 'preview') {
+      if (e.key === 'Escape' && tool.activeTool === 'preview') {
         setTool('select')
       }
     }

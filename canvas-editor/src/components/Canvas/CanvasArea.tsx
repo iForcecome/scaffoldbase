@@ -1,6 +1,8 @@
 import { useRef, useCallback, useEffect } from 'react'
-import { useEditorStore } from '../../stores/editor-store'
 import { useViewportStore } from '../../stores/viewport-store'
+import { useSelectionStore } from '../../stores/selection-store'
+import { useToolStore } from '../../stores/tool-store'
+import { useEditorStore } from '../../stores/editor-store'
 import { CanvasViewport } from './CanvasViewport'
 import { BrowserFrame } from './BrowserFrame'
 import { ContentIFrame } from './ContentIFrame'
@@ -18,8 +20,8 @@ export function CanvasArea() {
   const zoomTo = useViewportStore(s => s.zoomTo)
   const activePageId = useEditorStore(s => s.activePageId)
   const getDeviceWidth = useViewportStore(s => s.getDeviceWidth)
-  const selectElement = useEditorStore(s => s.selectElement)
-  const isPreview = useEditorStore(s => s.activeTool === 'preview')
+  const selectElement = useSelectionStore(s => s.selectElement)
+  const isPreview = useToolStore(s => s.activeTool === 'preview')
 
   const { iframeRef, sendToIframe, registerHandler } = useBridge()
 

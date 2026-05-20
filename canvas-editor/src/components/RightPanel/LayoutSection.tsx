@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 
 function parsePx(raw: string | undefined): string {
   if (!raw) return '0'
@@ -15,9 +16,9 @@ function parsePadding(raw: string): [string, string, string, string] {
 }
 
 export function LayoutSection() {
-  const selectedIds = useEditorStore(s => s.selectedIds)
-  const selectedElements = useEditorStore(s => s.selectedElements)
-  const styles = useEditorStore(s => s.selectedStyles)
+  const selectedIds = useSelectionStore(s => s.selectedIds)
+  const selectedElements = useSelectionStore(s => s.selectedElements)
+  const styles = useSelectionStore(s => s.selectedStyles)
   const activePageId = useEditorStore(s => s.activePageId)
   const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 

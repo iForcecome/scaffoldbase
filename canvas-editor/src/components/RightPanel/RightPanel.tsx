@@ -1,4 +1,6 @@
 import { useEditorStore } from '../../stores/editor-store'
+import { useToolStore } from '../../stores/tool-store'
+import { useSelectionStore } from '../../stores/selection-store'
 import { LayoutSection } from './LayoutSection'
 import { DisplaySection } from './DisplaySection'
 import { AppearanceSection } from './AppearanceSection'
@@ -8,9 +10,9 @@ import { SpecBindingSection } from './SpecBindingSection'
 import { PagePropertiesSection } from './PagePropertiesSection'
 
 export function RightPanel() {
-  const isOpen = useEditorStore(s => s.rightPanelOpen)
-  const selectedIds = useEditorStore(s => s.selectedIds)
-  const selectedElements = useEditorStore(s => s.selectedElements)
+  const isOpen = useToolStore(s => s.rightPanelOpen)
+  const selectedIds = useSelectionStore(s => s.selectedIds)
+  const selectedElements = useSelectionStore(s => s.selectedElements)
   const activePageId = useEditorStore(s => s.activePageId)
   if (!isOpen) return null
 

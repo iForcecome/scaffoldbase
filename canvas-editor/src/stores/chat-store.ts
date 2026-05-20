@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
-import { useEditorStore, requestFromBridge } from './editor-store'
+import { useEditorStore } from './editor-store'
+import { useSelectionStore } from './selection-store'
+import { requestFromBridge } from '../bridge/host'
 import type { SchemaOperation } from '../schema-operations/types'
 import { validateSchemaOperationResponse } from '../schema-operations/validate-schema-operation'
 
@@ -82,10 +84,11 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
 
   sendMessage: async (text: string) => {
     const editorStore = useEditorStore.getState()
+    const selectionStore = useSelectionStore.getState()
     const page = editorStore.getActivePage()
     if (!page || !editorStore.projectId) return
 
-    const selectedIds = editorStore.selectedIds
+    const selectedIds = selectionStore.selectedIds
     const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
 
     const userMsg: ChatMessage = {
@@ -108,7 +111,6 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
     try {
       let elementHtml: string | undefined
       let elementId: string | undefined
-      let fragmentId: string | undefined
       let selectedNode: Record<string, unknown> | undefined
 
       if (selectedId) {
@@ -128,8 +130,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
           )
           elementHtml = stripBridgeAttrs(resp.html)
           elementId = selectedId
-          fragmentId = selectedId
-          const selectedElement = editorStore.selectedElements[selectedId]
+          const selectedElement = selectionStore.selectedElements[selectedId]
           selectedNode = {
             id: resp.sfId || selectedElement?.sfId || selectedId,
             runtimeId: selectedId,

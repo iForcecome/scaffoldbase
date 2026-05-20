@@ -1,12 +1,13 @@
 import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 
 const displayModes = ['flex', 'grid', 'block', 'none'] as const
 const directions = ['row', 'column'] as const
 const alignMap = ['flex-start', 'center', 'flex-end']
 
 export function DisplaySection() {
-  const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
-  const styles = useEditorStore(s => s.selectedStyles)
+  const selectedId = useSelectionStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
+  const styles = useSelectionStore(s => s.selectedStyles)
   const activePageId = useEditorStore(s => s.activePageId)
   const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 

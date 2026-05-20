@@ -2,29 +2,16 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { api } from '../services/api'
 import { clonePageSchema, createDefaultPageSchema, renderPageSchemaToHtml, type PageSchema } from '../page-schema/render'
-import { buildSemanticIndex, type SemanticIndexEntry } from '../utils/semantic-index'
 import { buildPageSchemaFromDomTree } from '../page-schema/from-dom-tree'
 import { validatePageSchema } from '../page-schema/validate'
 import { applySchemaOperations as applySchemaOperationList } from '../schema-operations/apply-schema-operation'
 import type { SchemaOperation } from '../schema-operations/types'
-import { useViewportStore, type Device } from './viewport-store'
+import { useViewportStore } from './viewport-store'
+import { useSelectionStore } from './selection-store'
 
 export type { Device } from './viewport-store'
-
-export interface DOMNode {
-  id: string
-  sfId?: string | null
-  tag: string
-  label: string
-  semanticLabel?: string | null
-  component?: string | null
-  role?: string | null
-  variant?: string | null
-  specPath?: string | null
-  rect: { x: number; y: number; width: number; height: number }
-  styles: Record<string, string>
-  children: DOMNode[]
-}
+export type { DOMNode, SelectedElement } from './selection-store'
+export type { Tool } from './tool-store'
 
 export interface Page {
   id: string
@@ -39,60 +26,26 @@ interface PageSnapshot {
   schema?: PageSchema | null
 }
 
-export type Tool = 'select' | 'zoom' | 'marquee' | 'text' | 'insert' | 'preview'
-
-type Rect = { x: number; y: number; width: number; height: number }
-
-export interface SelectedElement {
-  label: string | null
-  rect: Rect | null
-  sfId?: string | null
-  component?: string | null
-  role?: string | null
-  variant?: string | null
-  specPath?: string | null
-}
-
 interface EditorState {
   projectId: string | null
   projectName: string
   pages: Page[]
   activePageId: string
-  domTree: DOMNode[]
-  semanticIndex: SemanticIndexEntry[]
-  selectedIds: string[]
-  selectedElements: Record<string, SelectedElement>
-  selectedStyles: Record<string, string> | null
-  hoveredId: string | null
-  hoveredRect: Rect | null
-  activeTool: Tool
-  leftPanelOpen: boolean
-  rightPanelOpen: boolean
   undoStack: PageSnapshot[]
   redoStack: PageSnapshot[]
   saving: boolean
   dirtyPageIds: string[]
-  editingTextId: string | null
 }
 
 interface EditorActions {
   loadProject: (projectId: string, name: string, pages: Page[]) => void
   setActivePage: (id: string) => void
-    setDomTree: (tree: DOMNode[]) => void
-  selectElement: (id: string | null, rect?: Rect | null, label?: string | null, multi?: boolean, meta?: Partial<SelectedElement>) => void
-  updateSelectedRect: (id: string, rect: Rect) => void
-  setSelectedStyles: (styles: Record<string, string>) => void
-  hoverElement: (id: string | null, rect?: Rect | null) => void
-  setTool: (t: Tool) => void
-  toggleLeftPanel: () => void
-  toggleRightPanel: () => void
   updatePageHTML: (pageId: string, html: string) => void
   applySchemaOperations: (pageId: string, operations: SchemaOperation[]) => void
   pushUndo: () => void
   undo: () => void
   redo: () => void
   getActivePage: () => Page | undefined
-  getPrimarySelectedId: () => string | null
   addPage: () => void
   deletePage: (id: string) => void
   duplicatePage: (id: string) => void
@@ -101,7 +54,6 @@ interface EditorActions {
   markDirty: (pageId?: string) => void
   isDirty: () => boolean
   save: () => Promise<void>
-  setEditingText: (id: string | null) => void
 }
 
 export {
@@ -113,7 +65,6 @@ export {
   consumeSuppressReload,
   requestFromBridge,
 } from '../bridge/host'
-import { sendBridgeMessage } from '../bridge/host'
 
 function createGeneratedPage(id: string, title: string): Page {
   const schema = createDefaultPageSchema(id, title)
@@ -207,124 +158,37 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     projectName: '',
     pages: [],
     activePageId: '',
-    domTree: [],
-    semanticIndex: [],
-    selectedIds: [],
-    selectedElements: {},
-    selectedStyles: null,
-    hoveredId: null,
-    hoveredRect: null,
-    activeTool: 'select',
-    leftPanelOpen: true,
-    rightPanelOpen: true,
     undoStack: [],
     redoStack: [],
     saving: false,
     dirtyPageIds: [],
-    editingTextId: null,
 
-    loadProject: (projectId, name, pages) => set((s) => {
-      s.projectId = projectId
-      s.projectName = name
-      if (pages.length === 0) {
-        const defaultPage = createGeneratedPage('page-' + Date.now(), '首页')
-        s.pages = [defaultPage]
-        s.activePageId = defaultPage.id
-        s.dirtyPageIds = [defaultPage.id]
-      } else {
-        s.pages = normalizeLoadedPages(pages)
-        s.activePageId = s.pages[0]?.id ?? ''
-        s.dirtyPageIds = []
-      }
-      s.domTree = []
-      s.semanticIndex = []
-      s.selectedIds = []
-      s.selectedElements = {}
-      s.selectedStyles = null
-      s.hoveredId = null
-      s.hoveredRect = null
-      s.undoStack = []
-      s.redoStack = []
-      s.activeTool = 'select'
-      s.editingTextId = null
-      useViewportStore.getState().resetViewport()
-    }),
-
-    setActivePage: (id) => set((s) => {
-      s.activePageId = id
-      s.selectedIds = []
-      s.selectedElements = {}
-      s.selectedStyles = null
-      s.hoveredId = null
-      s.hoveredRect = null
-      s.domTree = []
-      s.semanticIndex = []
-      useViewportStore.getState().resetViewport()
-    }),
-
-    setDomTree: (tree) => set((s) => {
-      s.domTree = tree
-      s.semanticIndex = buildSemanticIndex(tree)
-    }),
-
-    selectElement: (id, rect, label, multi, meta) => set((s) => {
-      if (id === null) {
-        s.selectedIds = []
-        s.selectedElements = {}
-        s.selectedStyles = null
-        return
-      }
-
-      if (multi) {
-        const idx = s.selectedIds.indexOf(id)
-        if (idx >= 0) {
-          s.selectedIds.splice(idx, 1)
-          delete s.selectedElements[id]
-          if (s.selectedIds.length === 0) {
-            s.selectedStyles = null
-          }
+    loadProject: (projectId, name, pages) => {
+      set((s) => {
+        s.projectId = projectId
+        s.projectName = name
+        if (pages.length === 0) {
+          const defaultPage = createGeneratedPage('page-' + Date.now(), '首页')
+          s.pages = [defaultPage]
+          s.activePageId = defaultPage.id
+          s.dirtyPageIds = [defaultPage.id]
         } else {
-          s.selectedIds.push(id)
-          s.selectedElements[id] = { label: label ?? null, rect: rect ?? null, ...meta }
-          s.selectedStyles = null
+          s.pages = normalizeLoadedPages(pages)
+          s.activePageId = s.pages[0]?.id ?? ''
+          s.dirtyPageIds = []
         }
-      } else {
-        s.selectedIds = [id]
-        s.selectedElements = { [id]: { label: label ?? null, rect: rect ?? null, ...meta } }
-        s.selectedStyles = null
-      }
-    }),
+        s.undoStack = []
+        s.redoStack = []
+      })
+      useSelectionStore.getState().resetForPageChange()
+      useViewportStore.getState().resetViewport()
+    },
 
-    updateSelectedRect: (id, rect) => set((s) => {
-      if (s.selectedElements[id]) {
-        s.selectedElements[id].rect = rect
-      }
-    }),
-
-    setSelectedStyles: (styles) => set((s) => { s.selectedStyles = styles }),
-
-    hoverElement: (id, rect) => set((s) => {
-      s.hoveredId = id
-      s.hoveredRect = rect ?? null
-    }),
-
-    setTool: (t) => set((s) => {
-      const wasPreview = s.activeTool === 'preview'
-      const willPreview = t === 'preview'
-      s.activeTool = t
-      if (willPreview) {
-        s.selectedIds = []
-        s.selectedElements = {}
-        s.selectedStyles = null
-        s.hoveredId = null
-        s.hoveredRect = null
-      }
-      if (wasPreview !== willPreview) {
-        sendBridgeMessage({ type: 'set-mode', mode: willPreview ? 'preview' : 'design' })
-      }
-    }),
-    toggleLeftPanel: () => set((s) => { s.leftPanelOpen = !s.leftPanelOpen }),
-    toggleRightPanel: () => set((s) => { s.rightPanelOpen = !s.rightPanelOpen }),
+    setActivePage: (id) => {
+      set((s) => { s.activePageId = id })
+      useSelectionStore.getState().resetForPageChange()
+      useViewportStore.getState().resetViewport()
+    },
 
     updatePageHTML: (pageId, html) => set((s) => {
       const page = s.pages.find(p => p.id === pageId)
@@ -386,65 +250,58 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     }),
 
     getActivePage: () => get().pages.find(p => p.id === get().activePageId),
-    getPrimarySelectedId: () => {
-      const ids = get().selectedIds
-      return ids.length > 0 ? ids[ids.length - 1] : null
+
+    addPage: () => {
+      const id = 'page-' + Date.now()
+      set((s) => {
+        s.pages.push(createGeneratedPage(id, '新页面'))
+        s.activePageId = id
+        if (!s.dirtyPageIds.includes(id)) s.dirtyPageIds.push(id)
+      })
+      useSelectionStore.getState().clearSelection()
     },
 
-    addPage: () => set((s) => {
-      const id = 'page-' + Date.now()
-      s.pages.push(createGeneratedPage(id, '新页面'))
-      s.activePageId = id
-      s.selectedIds = []
-      s.selectedElements = {}
-      s.selectedStyles = null
-      if (!s.dirtyPageIds.includes(id)) {
-        s.dirtyPageIds.push(id)
-      }
-    }),
-
-    deletePage: (id) => set((s) => {
-      if (s.pages.length <= 1) return
-      const idx = s.pages.findIndex(p => p.id === id)
-      if (idx < 0) return
-      s.pages.splice(idx, 1)
-      if (s.activePageId === id) {
-        s.activePageId = s.pages[Math.min(idx, s.pages.length - 1)].id
-        s.selectedIds = []
-        s.selectedElements = {}
-        s.selectedStyles = null
-      }
-      const dirtyIdx = s.dirtyPageIds.indexOf(id)
-      if (dirtyIdx >= 0) s.dirtyPageIds.splice(dirtyIdx, 1)
-      // Mark remaining pages dirty so save will sync the full page list
-      if (!s.dirtyPageIds.includes(s.activePageId)) {
-        s.dirtyPageIds.push(s.activePageId)
-      }
-    }),
-
-    duplicatePage: (id) => set((s) => {
-      const source = s.pages.find(p => p.id === id)
-      if (!source) return
-      const newId = 'page-' + Date.now()
-      const idx = s.pages.findIndex(p => p.id === id)
-      const schema = source.schema ? clonePageSchema(source.schema, {
-        id: newId,
-        title: source.title + ' 副本',
-      }) : null
-      s.pages.splice(idx + 1, 0, {
-        id: newId,
-        title: source.title + ' 副本',
-        html: schema ? renderPageSchemaToHtml(schema) : source.html,
-        schema,
+    deletePage: (id) => {
+      let activeChanged = false
+      set((s) => {
+        if (s.pages.length <= 1) return
+        const idx = s.pages.findIndex(p => p.id === id)
+        if (idx < 0) return
+        s.pages.splice(idx, 1)
+        if (s.activePageId === id) {
+          s.activePageId = s.pages[Math.min(idx, s.pages.length - 1)].id
+          activeChanged = true
+        }
+        const dirtyIdx = s.dirtyPageIds.indexOf(id)
+        if (dirtyIdx >= 0) s.dirtyPageIds.splice(dirtyIdx, 1)
+        if (!s.dirtyPageIds.includes(s.activePageId)) {
+          s.dirtyPageIds.push(s.activePageId)
+        }
       })
-      s.activePageId = newId
-      s.selectedIds = []
-      s.selectedElements = {}
-      s.selectedStyles = null
-      if (!s.dirtyPageIds.includes(newId)) {
-        s.dirtyPageIds.push(newId)
-      }
-    }),
+      if (activeChanged) useSelectionStore.getState().clearSelection()
+    },
+
+    duplicatePage: (id) => {
+      set((s) => {
+        const source = s.pages.find(p => p.id === id)
+        if (!source) return
+        const newId = 'page-' + Date.now()
+        const idx = s.pages.findIndex(p => p.id === id)
+        const schema = source.schema ? clonePageSchema(source.schema, {
+          id: newId,
+          title: source.title + ' 副本',
+        }) : null
+        s.pages.splice(idx + 1, 0, {
+          id: newId,
+          title: source.title + ' 副本',
+          html: schema ? renderPageSchemaToHtml(schema) : source.html,
+          schema,
+        })
+        s.activePageId = newId
+        if (!s.dirtyPageIds.includes(newId)) s.dirtyPageIds.push(newId)
+      })
+      useSelectionStore.getState().clearSelection()
+    },
 
     renamePage: (id, title) => set((s) => {
       const page = s.pages.find(p => p.id === id)
@@ -458,12 +315,13 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 
     upgradePageToSchema: (id) => {
       let upgraded = false
+      const domTree = useSelectionStore.getState().domTree
       set((s) => {
         const page = s.pages.find(p => p.id === id)
         if (!page || page.schema) return
 
         if (id !== s.activePageId) return
-        const schema = buildPageSchemaFromDomTree(id, page.title, s.domTree)
+        const schema = buildPageSchemaFromDomTree(id, page.title, domTree)
         if (!schema) return
 
         s.undoStack.push(createPageSnapshot(page))
@@ -492,11 +350,12 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       if (!state.projectId || state.dirtyPageIds.length === 0) return
       set({ saving: true })
       try {
+        const domTree = useSelectionStore.getState().domTree
         for (const pageId of state.dirtyPageIds) {
           const page = state.pages.find(p => p.id === pageId)
           if (page) {
             const derivedSchema = page.schema || (pageId === state.activePageId
-              ? buildPageSchemaFromDomTree(pageId, page.title, state.domTree)
+              ? buildPageSchemaFromDomTree(pageId, page.title, domTree)
               : null)
             const html = page.schema
               ? renderPageSchemaToHtml(page.schema)
@@ -520,8 +379,6 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         set({ saving: false })
       }
     },
-
-    setEditingText: (id) => set((s) => { s.editingTextId = id }),
   }))
 )
 

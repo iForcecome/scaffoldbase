@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 import { useChatStore } from '../../stores/chat-store'
 
 interface ChatInputProps {
@@ -12,9 +12,9 @@ export function ChatInput({ historyVisible, canToggleHistory, onToggleHistory }:
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const selectedIds = useEditorStore(s => s.selectedIds)
-  const selectedElements = useEditorStore(s => s.selectedElements)
-  const selectElement = useEditorStore(s => s.selectElement)
+  const selectedIds = useSelectionStore(s => s.selectedIds)
+  const selectedElements = useSelectionStore(s => s.selectedElements)
+  const selectElement = useSelectionStore(s => s.selectElement)
 
   const sendMessage = useChatStore(s => s.sendMessage)
   const isStreaming = useChatStore(s => s.isStreaming)

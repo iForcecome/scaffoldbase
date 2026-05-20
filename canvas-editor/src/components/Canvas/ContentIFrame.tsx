@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { useEditorStore, consumeSuppressReload, sendBridgeMessage } from '../../stores/editor-store'
 import { useViewportStore } from '../../stores/viewport-store'
+import { useSelectionStore } from '../../stores/selection-store'
+import { useToolStore } from '../../stores/tool-store'
 import { injectBridge } from '../../utils/inject-bridge'
 import { deriveSpecPath } from '../../utils/spec-path'
 
@@ -102,11 +104,11 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
   const activePageId = useEditorStore(s => s.activePageId)
   const iframeHeight = useViewportStore(s => s.iframeHeight)
   const setIframeHeight = useViewportStore(s => s.setIframeHeight)
-  const isPreview = useEditorStore(s => s.activeTool === 'preview')
-  const editingTextId = useEditorStore(s => s.editingTextId)
-  const selectElement = useEditorStore(s => s.selectElement)
-  const hoverElement = useEditorStore(s => s.hoverElement)
-  const setEditingText = useEditorStore(s => s.setEditingText)
+  const isPreview = useToolStore(s => s.activeTool === 'preview')
+  const editingTextId = useToolStore(s => s.editingTextId)
+  const selectElement = useSelectionStore(s => s.selectElement)
+  const hoverElement = useSelectionStore(s => s.hoverElement)
+  const setEditingText = useToolStore(s => s.setEditingText)
 
   const [srcDoc, setSrcDoc] = useState('')
   const prevPageIdRef = useRef(activePageId)
@@ -173,8 +175,8 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
   const handleOverlayMove = useCallback((e: React.MouseEvent) => {
     const hit = getElementAtPoint(e.clientX, e.clientY)
     if (hit) {
-      const store = useEditorStore.getState()
-      if (!store.selectedIds.includes(hit.id)) {
+      const sel = useSelectionStore.getState()
+      if (!sel.selectedIds.includes(hit.id)) {
         hoverElement(hit.id, hit.rect)
       }
     } else {

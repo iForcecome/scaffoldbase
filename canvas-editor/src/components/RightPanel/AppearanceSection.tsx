@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 
 function rgbToHex(rgb: string): string {
   const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
@@ -9,8 +10,8 @@ function rgbToHex(rgb: string): string {
 }
 
 export function AppearanceSection() {
-  const selectedId = useEditorStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
-  const styles = useEditorStore(s => s.selectedStyles)
+  const selectedId = useSelectionStore(s => s.selectedIds.length > 0 ? s.selectedIds[s.selectedIds.length - 1] : null)
+  const styles = useSelectionStore(s => s.selectedStyles)
   const activePageId = useEditorStore(s => s.activePageId)
   const applySchemaOperations = useEditorStore(s => s.applySchemaOperations)
 

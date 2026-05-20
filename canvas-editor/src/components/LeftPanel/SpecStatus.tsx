@@ -1,5 +1,6 @@
 import { defaultTokens } from '../../design-system/tokens'
 import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore } from '../../stores/selection-store'
 
 function countTokenLeaves(value: unknown): number {
   if (Array.isArray(value)) {
@@ -17,7 +18,7 @@ function countTokenLeaves(value: unknown): number {
 
 export function SpecStatus() {
   const pageCount = useEditorStore(s => s.pages.length)
-  const semanticIndex = useEditorStore(s => s.semanticIndex)
+  const semanticIndex = useSelectionStore(s => s.semanticIndex)
   const dirtyCount = useEditorStore(s => s.dirtyPageIds.length)
   const tokenCount = countTokenLeaves(defaultTokens)
 

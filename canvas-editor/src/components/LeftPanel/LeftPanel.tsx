@@ -1,10 +1,10 @@
-import { useEditorStore } from '../../stores/editor-store'
+import { useToolStore } from '../../stores/tool-store'
 import { PageList } from './PageList'
 import { LayerTree } from './LayerTree'
 import { SpecStatus } from './SpecStatus'
 
 export function LeftPanel() {
-  const isOpen = useEditorStore(s => s.leftPanelOpen)
+  const isOpen = useToolStore(s => s.leftPanelOpen)
 
   if (!isOpen) return null
 

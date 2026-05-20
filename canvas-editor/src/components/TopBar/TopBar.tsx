@@ -5,7 +5,8 @@ import {
   FlaskConical, ArrowLeft,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useEditorStore, type Tool } from '../../stores/editor-store'
+import { useEditorStore } from '../../stores/editor-store'
+import { useToolStore, type Tool } from '../../stores/tool-store'
 import { useViewportStore, type Device } from '../../stores/viewport-store'
 
 const tools: { id: Tool; icon: typeof MousePointer2; label: string; key: string }[] = [
@@ -27,8 +28,8 @@ export function TopBar() {
   const pages = useEditorStore(s => s.pages)
   const activePageId = useEditorStore(s => s.activePageId)
   const projectName = useEditorStore(s => s.projectName)
-  const activeTool = useEditorStore(s => s.activeTool)
-  const setTool = useEditorStore(s => s.setTool)
+  const activeTool = useToolStore(s => s.activeTool)
+  const setTool = useToolStore(s => s.setTool)
   const device = useViewportStore(s => s.device)
   const setDevice = useViewportStore(s => s.setDevice)
   const undo = useEditorStore(s => s.undo)

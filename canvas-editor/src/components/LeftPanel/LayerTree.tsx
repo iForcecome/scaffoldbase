@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react'
-import { useEditorStore, sendBridgeMessage, setPendingReveal, type DOMNode } from '../../stores/editor-store'
+import { sendBridgeMessage, setPendingReveal } from '../../bridge/host'
+import { useEditorStore } from '../../stores/editor-store'
+import { useSelectionStore, type DOMNode } from '../../stores/selection-store'
 
 function ContainerIcon({ className }: { className?: string }) {
   return (
@@ -90,9 +92,9 @@ function getTagBadge(node: DOMNode, isSelected: boolean, hasChildren: boolean) {
 function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth: number; parentId: string | null; siblingIds: string[] }) {
   const [expanded, setExpanded] = useState(depth < 3)
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
-  const selectedIds = useEditorStore(s => s.selectedIds)
-  const selectElement = useEditorStore(s => s.selectElement)
-  const hoverElement = useEditorStore(s => s.hoverElement)
+  const selectedIds = useSelectionStore(s => s.selectedIds)
+  const selectElement = useSelectionStore(s => s.selectElement)
+  const hoverElement = useSelectionStore(s => s.hoverElement)
   const rowRef = useRef<HTMLDivElement>(null)
 
   const hasChildren = node.children.length > 0
@@ -209,7 +211,7 @@ function LayerNode({ node, depth, parentId, siblingIds }: { node: DOMNode; depth
 }
 
 export function LayerTree() {
-  const domTree = useEditorStore(s => s.domTree)
+  const domTree = useSelectionStore(s => s.domTree)
   const activePage = useEditorStore(s => s.pages.find(p => p.id === s.activePageId))
 
   return (

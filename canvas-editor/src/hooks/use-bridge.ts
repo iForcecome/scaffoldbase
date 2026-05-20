@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditorStore, setBridgeSender, consumePendingReveal } from '../stores/editor-store'
+import { useEditorStore } from '../stores/editor-store'
+import { setBridgeSender, consumePendingReveal } from '../bridge/host'
 import { useViewportStore } from '../stores/viewport-store'
+import { useSelectionStore } from '../stores/selection-store'
+import { useToolStore } from '../stores/tool-store'
 import { deriveSpecPath } from '../utils/spec-path'
 
 function handleIframeWheel(data: Record<string, unknown>) {
@@ -22,11 +25,11 @@ type MessageHandler = (data: Record<string, unknown>) => void
 
 export function useBridge() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const setDomTree = useEditorStore(s => s.setDomTree)
-  const selectElement = useEditorStore(s => s.selectElement)
-  const updateSelectedRect = useEditorStore(s => s.updateSelectedRect)
-  const setSelectedStyles = useEditorStore(s => s.setSelectedStyles)
-  const hoverElement = useEditorStore(s => s.hoverElement)
+  const setDomTree = useSelectionStore(s => s.setDomTree)
+  const selectElement = useSelectionStore(s => s.selectElement)
+  const updateSelectedRect = useSelectionStore(s => s.updateSelectedRect)
+  const setSelectedStyles = useSelectionStore(s => s.setSelectedStyles)
+  const hoverElement = useSelectionStore(s => s.hoverElement)
 
   const handlersRef = useRef<Map<string, MessageHandler>>(new Map())
 
@@ -43,10 +46,11 @@ export function useBridge() {
     switch (data.type) {
       case 'ready': {
         sendToIframe({ type: 'request-tree' })
-        const store = useEditorStore.getState()
-        const currentMode = store.activeTool === 'preview' ? 'preview' : 'design'
+        const tool = useToolStore.getState()
+        const selection = useSelectionStore.getState()
+        const currentMode = tool.activeTool === 'preview' ? 'preview' : 'design'
         sendToIframe({ type: 'set-mode', mode: currentMode })
-        const lastSelected = store.selectedIds[store.selectedIds.length - 1]
+        const lastSelected = selection.selectedIds[selection.selectedIds.length - 1]
         if (lastSelected) sendToIframe({ type: 'get-computed-style', id: lastSelected })
         break
       }
@@ -96,8 +100,8 @@ export function useBridge() {
         break
       }
       case 'element-rect-update': {
-        const store = useEditorStore.getState()
-        if (store.selectedIds.includes(data.id as string) && data.rect) {
+        const sel = useSelectionStore.getState()
+        if (sel.selectedIds.includes(data.id as string) && data.rect) {
           updateSelectedRect(data.id as string, data.rect as any)
         }
         break
@@ -110,16 +114,16 @@ export function useBridge() {
       case 'reorder-done':
         break
       case 'element-hover': {
-        const store = useEditorStore.getState()
-        if (!store.selectedIds.includes(data.id as string)) {
+        const sel = useSelectionStore.getState()
+        if (!sel.selectedIds.includes(data.id as string)) {
           hoverElement(data.id, data.rect)
         }
         break
       }
       case 'element-rect': {
-        const store = useEditorStore.getState()
+        const sel = useSelectionStore.getState()
         const id = data.id as string
-        if (store.hoveredId === id && data.rect) {
+        if (sel.hoveredId === id && data.rect) {
           hoverElement(id, data.rect as any)
         }
         break
@@ -128,7 +132,7 @@ export function useBridge() {
         handleIframeWheel(data)
         break
       case 'edit-done': {
-        useEditorStore.getState().setEditingText(null)
+        useToolStore.getState().setEditingText(null)
         break
       }
       case 'navigate-page': {
