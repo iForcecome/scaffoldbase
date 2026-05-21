@@ -3,7 +3,7 @@ import type { ToolDef, ToolResult } from './types'
 import type { PageSchema } from '../page-schema/types'
 
 const pageList: ToolDef<Record<string, never>, Array<{ id: string; title: string }>> = {
-  name: 'page.list',
+  name: 'page_list',
   description: '列出当前项目所有页面的 id 和 title。只读，不产生 effects。',
   paramsSchema: { type: 'object', properties: {}, additionalProperties: false },
   execute: (_params, ctx) => ({
@@ -14,7 +14,7 @@ const pageList: ToolDef<Record<string, never>, Array<{ id: string; title: string
 }
 
 const pageRead: ToolDef<{ pageId: string }, PageSchema | null> = {
-  name: 'page.read',
+  name: 'page_read',
   description: '读取指定页面的完整 PageSchema。返回深拷贝，tool 改动不会影响真 schema。',
   paramsSchema: {
     type: 'object',
@@ -37,7 +37,7 @@ const pageRead: ToolDef<{ pageId: string }, PageSchema | null> = {
 }
 
 const pageCreate: ToolDef<{ title?: string }, { pageId: string }> = {
-  name: 'page.create',
+  name: 'page_create',
   description: '创建一个新页面（含默认 schema：PageHeader + FilterBar + DataTable）。可选 title。返回新建页面的 id。',
   paramsSchema: {
     type: 'object',
@@ -61,7 +61,7 @@ const pageCreate: ToolDef<{ title?: string }, { pageId: string }> = {
 }
 
 const pageDelete: ToolDef<{ pageId: string }, void> = {
-  name: 'page.delete',
+  name: 'page_delete',
   description: '删除指定页面。如果项目只剩一个页面则拒绝。',
   paramsSchema: {
     type: 'object',
@@ -92,7 +92,7 @@ const pageDelete: ToolDef<{ pageId: string }, void> = {
 }
 
 const pageDuplicate: ToolDef<{ pageId: string }, { newPageId: string }> = {
-  name: 'page.duplicate',
+  name: 'page_duplicate',
   description: '复制指定页面（含完整 schema），title 后缀加 "副本"，自动切到副本。',
   paramsSchema: {
     type: 'object',
@@ -124,7 +124,7 @@ const pageDuplicate: ToolDef<{ pageId: string }, { newPageId: string }> = {
 }
 
 const pageRename: ToolDef<{ pageId: string; title: string }, void> = {
-  name: 'page.rename',
+  name: 'page_rename',
   description: '重命名页面。title 必须非空、长度 ≤ 80。',
   paramsSchema: {
     type: 'object',
@@ -158,7 +158,7 @@ const pageRename: ToolDef<{ pageId: string; title: string }, void> = {
 }
 
 const pageSetActive: ToolDef<{ pageId: string }, void> = {
-  name: 'page.set_active',
+  name: 'page_set_active',
   description: '切换当前活动页面。会清空选区和视口。',
   paramsSchema: {
     type: 'object',

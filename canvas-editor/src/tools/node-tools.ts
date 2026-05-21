@@ -12,7 +12,7 @@ function ensurePage(ctx: { getPageSchema: (id: string) => PageSchema | null }, p
 }
 
 const nodeRead: ToolDef<{ pageId: string; nodeId: string }, ComponentNode | null> = {
-  name: 'node.read',
+  name: 'node_read',
   description: '读取页面中某个节点的完整定义（含 children）。深拷贝返回。',
   paramsSchema: {
     type: 'object',
@@ -33,7 +33,7 @@ const nodeRead: ToolDef<{ pageId: string; nodeId: string }, ComponentNode | null
 }
 
 const nodeFind: ToolDef<{ pageId: string; component?: string; role?: string; textContains?: string; labelContains?: string }, Array<{ id: string; component: string; label?: string; path: string[] }>> = {
-  name: 'node.find',
+  name: 'node_find',
   description: '在页面中按 component / role / 文本 / label 模糊查找节点，返回匹配列表（含 path 路径）。多条件 AND 关系。',
   paramsSchema: {
     type: 'object',
@@ -72,7 +72,7 @@ const nodeFind: ToolDef<{ pageId: string; component?: string; role?: string; tex
 }
 
 const nodeInsert: ToolDef<{ pageId: string; target: string; position: Position; node: ComponentNode }, void> = {
-  name: 'node.insert',
+  name: 'node_insert',
   description: '在指定页面的 target 节点周围插入一个 ComponentNode。target 可以是 page.id（插入到 sections 根）。position 决定相对位置。',
   paramsSchema: {
     type: 'object',
@@ -96,7 +96,7 @@ const nodeInsert: ToolDef<{ pageId: string; target: string; position: Position; 
 }
 
 const nodeRemove: ToolDef<{ pageId: string; nodeId: string }, void> = {
-  name: 'node.remove',
+  name: 'node_remove',
   description: '从页面中删除一个节点（连带 children）。',
   paramsSchema: {
     type: 'object',
@@ -115,7 +115,7 @@ const nodeRemove: ToolDef<{ pageId: string; nodeId: string }, void> = {
 }
 
 const nodeMove: ToolDef<{ pageId: string; nodeId: string; referenceId: string; position: Position }, void> = {
-  name: 'node.move',
+  name: 'node_move',
   description: '把一个节点移动到 reference 节点周围。常用于拖拽 / 调整顺序。',
   paramsSchema: {
     type: 'object',
@@ -136,7 +136,7 @@ const nodeMove: ToolDef<{ pageId: string; nodeId: string; referenceId: string; p
 }
 
 const nodeUpdateProps: ToolDef<{ pageId: string; nodeId: string; props: Record<string, unknown> }, void> = {
-  name: 'node.update_props',
+  name: 'node_update_props',
   description: '合并更新节点的 props 字段（浅合并，传入字段覆盖同名字段，其他保留）。',
   paramsSchema: {
     type: 'object',
@@ -156,7 +156,7 @@ const nodeUpdateProps: ToolDef<{ pageId: string; nodeId: string; props: Record<s
 }
 
 const nodeUpdateStyle: ToolDef<{ pageId: string; nodeId: string; styles: Record<string, string> }, void> = {
-  name: 'node.update_style',
+  name: 'node_update_style',
   description: '合并更新节点的内联样式。styles 是 camelCase 键。空字符串值表示删除该样式。nodeId 等于 page.id 时改页面级 style。',
   paramsSchema: {
     type: 'object',
@@ -176,7 +176,7 @@ const nodeUpdateStyle: ToolDef<{ pageId: string; nodeId: string; styles: Record<
 }
 
 const nodeSetVariant: ToolDef<{ pageId: string; nodeId: string; variant: string }, void> = {
-  name: 'node.set_variant',
+  name: 'node_set_variant',
   description: '设置节点的 variant（设计系统变体名，如 "compact"、"spacious"）。',
   paramsSchema: {
     type: 'object',
@@ -196,7 +196,7 @@ const nodeSetVariant: ToolDef<{ pageId: string; nodeId: string; variant: string 
 }
 
 const nodeReplaceText: ToolDef<{ pageId: string; targetId: string; text: string }, void> = {
-  name: 'node.replace_text',
+  name: 'node_replace_text',
   description: '替换节点的文本内容。targetId 可以是节点 id，也可以是 "nodeId.title" / "nodeId.description" / "nodeId.label" 这类子字段。',
   paramsSchema: {
     type: 'object',

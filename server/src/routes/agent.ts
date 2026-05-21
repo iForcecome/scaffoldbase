@@ -50,8 +50,12 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
     const run = startRun(id)
     sendSSE(reply, 'run_started', { runId: run.runId })
 
+    // 客户端断连检测要监听 reply.raw（ServerResponse），不能用 request.raw —
+    // Node 16+ 的 IncomingMessage 'close' 在 body 读完时就会触发，不代表客户端断了。
     const ac = new AbortController()
-    request.raw.on('close', () => ac.abort())
+    reply.raw.on('close', () => {
+      if (!reply.raw.writableEnded) ac.abort()
+    })
 
     let done = false
     await runAgent(

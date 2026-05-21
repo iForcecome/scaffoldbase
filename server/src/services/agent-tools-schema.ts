@@ -22,12 +22,12 @@ const POSITION_ENUM = ['before', 'after', 'inside:start', 'inside:end']
 const tools: Array<{ name: string; description: string; parameters: object }> = [
   // ─── page ───────────────────────────────────────────────────
   {
-    name: 'page.list',
+    name: 'page_list',
     description: '列出当前项目所有页面的 id 和 title。只读，不产生 effects。',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
-    name: 'page.read',
+    name: 'page_read',
     description: '读取指定页面的完整 PageSchema。返回深拷贝。',
     parameters: {
       type: 'object',
@@ -37,7 +37,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'page.create',
+    name: 'page_create',
     description: '创建一个新页面（含默认 schema）。返回新建页面的 id。',
     parameters: {
       type: 'object',
@@ -46,7 +46,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'page.delete',
+    name: 'page_delete',
     description: '删除指定页面。只剩一个页面时拒绝。',
     parameters: {
       type: 'object',
@@ -56,7 +56,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'page.duplicate',
+    name: 'page_duplicate',
     description: '复制指定页面（含完整 schema），自动切到副本。',
     parameters: {
       type: 'object',
@@ -66,7 +66,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'page.rename',
+    name: 'page_rename',
     description: '重命名页面。title 必须非空、长度 ≤ 80。',
     parameters: {
       type: 'object',
@@ -79,7 +79,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'page.set_active',
+    name: 'page_set_active',
     description: '切换当前活动页面。会清空选区。',
     parameters: {
       type: 'object',
@@ -90,7 +90,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
   },
   // ─── node ───────────────────────────────────────────────────
   {
-    name: 'node.read',
+    name: 'node_read',
     description: '读取页面中某个节点的完整定义（含 children）。',
     parameters: {
       type: 'object',
@@ -100,7 +100,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.find',
+    name: 'node_find',
     description: '按 component / role / 文本 / label 模糊查找节点。多条件 AND。',
     parameters: {
       type: 'object',
@@ -116,7 +116,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.insert',
+    name: 'node_insert',
     description: '在 target 节点周围插入一个 ComponentNode。target 可为 page.id（插到 sections 根）。',
     parameters: {
       type: 'object',
@@ -131,7 +131,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.remove',
+    name: 'node_remove',
     description: '从页面中删除节点（连带 children）。',
     parameters: {
       type: 'object',
@@ -141,7 +141,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.move',
+    name: 'node_move',
     description: '把节点移动到 reference 节点周围。',
     parameters: {
       type: 'object',
@@ -156,7 +156,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.update_props',
+    name: 'node_update_props',
     description: '合并更新节点的 props 字段（浅合并）。',
     parameters: {
       type: 'object',
@@ -170,7 +170,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.update_style',
+    name: 'node_update_style',
     description: '合并更新节点的内联样式（camelCase 键，空字符串表示删除）。nodeId 等于 page.id 时改页面级 style。',
     parameters: {
       type: 'object',
@@ -184,7 +184,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.set_variant',
+    name: 'node_set_variant',
     description: '设置节点的 variant（如 "compact"、"spacious"）。',
     parameters: {
       type: 'object',
@@ -198,7 +198,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'node.replace_text',
+    name: 'node_replace_text',
     description: '替换节点的文本内容。targetId 可为子字段如 "nodeId.title"。',
     parameters: {
       type: 'object',
@@ -213,7 +213,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
   },
   // ─── selection / history ───────────────────────────────────
   {
-    name: 'selection.set',
+    name: 'selection_set',
     description: '设置当前选区（多选时多个 id）。空数组等价于清空。',
     parameters: {
       type: 'object',
@@ -223,7 +223,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'selection.hover',
+    name: 'selection_hover',
     description: '设置悬停节点（用于 AI 提示用户关注哪一块）。null 取消悬停。',
     parameters: {
       type: 'object',
@@ -233,12 +233,12 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
     },
   },
   {
-    name: 'history.undo',
+    name: 'history_undo',
     description: '撤销活动页面的上一次修改。',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
-    name: 'history.redo',
+    name: 'history_redo',
     description: '重做上次撤销的操作。',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },

@@ -43,7 +43,7 @@ export function PageList() {
 
   const commitRename = () => {
     if (renamingId && renameValue.trim()) {
-      void dispatchTools([{ name: 'page.rename', params: { pageId: renamingId, title: renameValue.trim() } }])
+      void dispatchTools([{ name: 'page_rename', params: { pageId: renamingId, title: renameValue.trim() } }])
     }
     setRenamingId(null)
   }
@@ -80,7 +80,7 @@ export function PageList() {
       if (projectId) {
         await api.pages.delete(projectId, pageId)
       }
-      await dispatchTools([{ name: 'page.delete', params: { pageId } }])
+      await dispatchTools([{ name: 'page_delete', params: { pageId } }])
       setMenuPageId(null)
     } catch (error) {
       console.error(error)
@@ -104,7 +104,7 @@ export function PageList() {
         </div>
         <div
           className="w-5 h-5 rounded flex items-center justify-center hover:bg-surface-2 text-ink-3"
-          onClick={(e) => { e.stopPropagation(); void dispatchTools([{ name: 'page.create', params: {} }]) }}
+          onClick={(e) => { e.stopPropagation(); void dispatchTools([{ name: 'page_create', params: {} }]) }}
           title="新建 Schema 页面"
         >
           <Plus className="w-3 h-3" />
@@ -140,7 +140,7 @@ export function PageList() {
                     ? 'bg-brand-50 text-brand-700'
                     : 'text-ink-1 hover:bg-surface-1'
                 }`}
-                onClick={() => void dispatchTools([{ name: 'page.set_active', params: { pageId: p.id } }])}
+                onClick={() => void dispatchTools([{ name: 'page_set_active', params: { pageId: p.id } }])}
                 onDoubleClick={() => {
                   setRenamingId(p.id)
                   setRenameValue(p.title)
@@ -197,7 +197,7 @@ export function PageList() {
                   <button
                     className="w-full h-7 px-3 flex items-center gap-2 text-xs text-ink-1 hover:bg-surface-1"
                     onClick={() => {
-                      void dispatchTools([{ name: 'page.duplicate', params: { pageId: p.id } }])
+                      void dispatchTools([{ name: 'page_duplicate', params: { pageId: p.id } }])
                       setMenuPageId(null)
                     }}
                   >

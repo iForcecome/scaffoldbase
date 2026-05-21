@@ -2,7 +2,7 @@ import { registerTool } from './registry'
 import type { ToolDef } from './types'
 
 const selectionSet: ToolDef<{ nodeIds: string[] }, void> = {
-  name: 'selection.set',
+  name: 'selection_set',
   description: '设置当前选区（多选时用多个 id）。传空数组等价于清空选区。',
   paramsSchema: {
     type: 'object',
@@ -20,7 +20,7 @@ const selectionSet: ToolDef<{ nodeIds: string[] }, void> = {
 }
 
 const selectionHover: ToolDef<{ nodeId: string | null }, void> = {
-  name: 'selection.hover',
+  name: 'selection_hover',
   description: '设置悬停节点（用于 AI 提示用户关注哪一块）。传 null 取消悬停。',
   paramsSchema: {
     type: 'object',
@@ -38,7 +38,7 @@ const selectionHover: ToolDef<{ nodeId: string | null }, void> = {
 }
 
 const historyUndo: ToolDef<Record<string, never>, void> = {
-  name: 'history.undo',
+  name: 'history_undo',
   description: '撤销活动页面的上一次修改（基于 schema 快照）。',
   paramsSchema: { type: 'object', properties: {}, additionalProperties: false },
   execute: () => ({
@@ -49,7 +49,7 @@ const historyUndo: ToolDef<Record<string, never>, void> = {
 }
 
 const historyRedo: ToolDef<Record<string, never>, void> = {
-  name: 'history.redo',
+  name: 'history_redo',
   description: '重做上次撤销的操作。',
   paramsSchema: { type: 'object', properties: {}, additionalProperties: false },
   execute: () => ({
