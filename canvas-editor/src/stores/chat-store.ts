@@ -34,6 +34,8 @@ interface ChatState {
   streamingTrace: AgentTraceEntry[]
   error: string | null
   abortController: AbortController | null
+  /** 用户主动点 stop 时设 true，用于区分自发 abort 与外部 abort */
+  userStopped: boolean
 }
 
 interface ChatActions {
@@ -94,6 +96,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
   streamingTrace: [],
   error: null,
   abortController: null,
+  userStopped: false,
 
   sendMessage: async (text: string) => {
     const editorStore = useEditorStore.getState()
@@ -119,6 +122,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
       streamingTrace: [],
       error: null,
       abortController,
+      userStopped: false,
     }))
 
     let runId: string | null = null
@@ -231,22 +235,29 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
         abortController: null,
       }))
     } catch (err: unknown) {
-      if ((err as Error).name === 'AbortError') {
-        set({ isStreaming: false, streamingContent: '', streamingTrace: [], abortController: null })
-        return
-      }
+      const error = err as Error
+      const isUserStop = get().userStopped
+      const isAbort = error.name === 'AbortError'
+      const message = isAbort
+        ? (isUserStop ? '已停止' : `请求被中断（${error.message || 'AbortError'}）`)
+        : (error.message || '请求失败')
+      // 永远不要静默；用户至少要看到状态变化
+      // eslint-disable-next-line no-console
+      console.warn('[chat-store] sendMessage failed', { name: error.name, message: error.message, isUserStop, stack: error.stack })
       set({
         isStreaming: false,
         streamingContent: '',
         streamingTrace: [],
-        error: (err as Error).message || '请求失败',
+        error: isUserStop ? null : message,
         abortController: null,
+        userStopped: false,
       })
     }
   },
 
   stopStreaming: () => {
     const { abortController } = get()
+    set({ userStopped: true })
     abortController?.abort()
     set({ isStreaming: false, streamingContent: '', streamingTrace: [], abortController: null })
   },
