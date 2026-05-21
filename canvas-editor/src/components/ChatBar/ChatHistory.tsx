@@ -51,13 +51,29 @@ export function ChatHistory({ onClose }: { onClose: () => void }) {
                   <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
                     {formatAssistantContent(msg.content)}
                   </p>
-                  {msg.htmlApplied && (
-                    <div className="flex items-center gap-1.5 text-xs text-green-400/80">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                      </svg>
-                      已应用到画布{msg.appliedMode ? ` · ${formatAppliedMode(msg.appliedMode)}` : ''}
-                    </div>
+                  {msg.trace && msg.trace.length > 0 && (
+                    <details className="text-xs text-white/60">
+                      <summary className="cursor-pointer hover:text-white/80">
+                        Agent 轨迹 · {msg.trace.length} 轮
+                      </summary>
+                      <ol className="mt-1.5 pl-4 space-y-1 list-decimal">
+                        {msg.trace.map((entry, i) => (
+                          <li key={i}>
+                            <span className="text-white/70">{entry.summary}</span>
+                            {entry.toolCalls && entry.toolCalls.length > 0 && (
+                              <ul className="ml-2 mt-0.5 space-y-0.5">
+                                {entry.toolCalls.map((tc, j) => (
+                                  <li key={j} className={tc.ok ? 'text-green-300/80' : 'text-red-300/80'}>
+                                    {tc.ok ? '✓' : '✗'} {tc.name}
+                                    {tc.error && ` — ${tc.error}`}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
                   )}
                 </div>
               )}
@@ -89,17 +105,6 @@ export function ChatHistory({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   )
-}
-
-function formatAppliedMode(mode: 'schema' | 'fragment' | 'diff'): string {
-  switch (mode) {
-    case 'schema':
-      return 'Schema'
-    case 'fragment':
-      return 'HTML 片段'
-    case 'diff':
-      return 'HTML Diff'
-  }
 }
 
 function formatAssistantContent(content: string): string {

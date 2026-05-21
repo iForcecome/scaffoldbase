@@ -2,23 +2,36 @@ import { create } from 'zustand'
 import { api } from '../services/api'
 import { useEditorStore } from './editor-store'
 import { useSelectionStore } from './selection-store'
-import { requestFromBridge } from '../bridge/host'
-import type { SchemaOperation } from '../schema-operations/types'
-import { validateSchemaOperationResponse } from '../schema-operations/validate-schema-operation'
+import { dispatchTools } from '../tools'
 
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: number
-  htmlApplied?: boolean
-  appliedMode?: 'schema' | 'fragment' | 'diff'
+  /** Agent 执行轨迹，给用户看 "AI 做了哪些步骤" */
+  trace?: AgentTraceEntry[]
+}
+
+export interface AgentTraceEntry {
+  turn: number
+  /** turn 完成时的摘要，如 "3 tool call(s)" 或 "final" */
+  summary: string
+  /** 这一 turn 调用的所有 tool */
+  toolCalls?: Array<{
+    name: string
+    callId: string
+    ok: boolean
+    error?: string
+  }>
 }
 
 interface ChatState {
   messages: ChatMessage[]
   isStreaming: boolean
   streamingContent: string
+  /** 当前 run 的 trace，turn-by-turn 累加 */
+  streamingTrace: AgentTraceEntry[]
   error: string | null
   abortController: AbortController | null
 }
@@ -30,20 +43,19 @@ interface ChatActions {
   clearError: () => void
 }
 
-function stripBridgeAttrs(html: string): string {
-  return html.replace(/\s*data-sf-id="sf-\d+"/g, '')
-}
-
-interface SSEEvent {
-  type: 'chunk' | 'applied' | 'done' | 'error'
-  content?: string
-  html?: string
-  schemaOperations?: SchemaOperation[]
-  mode?: 'diff' | 'fragment' | 'schema-operations'
+interface AgentSSEEvent {
+  type: 'run_started' | 'text' | 'tool_request' | 'step' | 'done' | 'error'
+  runId?: string
+  text?: string
+  callId?: string
+  name?: string
+  params?: unknown
+  turn?: number
+  summary?: string
   message?: string
 }
 
-async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerator<SSEEvent> {
+async function* parseAgentSSE(response: Response, signal?: AbortSignal): AsyncGenerator<AgentSSEEvent> {
   const reader = response.body?.getReader()
   if (!reader) throw new Error('无法读取响应流')
 
@@ -64,7 +76,7 @@ async function* parseSSE(response: Response, signal?: AbortSignal): AsyncGenerat
         const trimmed = line.trim()
         if (!trimmed || !trimmed.startsWith('data: ')) continue
         try {
-          yield JSON.parse(trimmed.slice(6)) as SSEEvent
+          yield JSON.parse(trimmed.slice(6)) as AgentSSEEvent
         } catch {
           // skip malformed
         }
@@ -79,6 +91,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
   messages: [],
   isStreaming: false,
   streamingContent: '',
+  streamingTrace: [],
   error: null,
   abortController: null,
 
@@ -88,8 +101,8 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
     const page = editorStore.getActivePage()
     if (!page || !editorStore.projectId) return
 
-    const selectedIds = selectionStore.selectedIds
-    const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
+    const selectedId = selectionStore.selectedIds[selectionStore.selectedIds.length - 1] ?? null
+    const selectedElement = selectedId ? selectionStore.selectedElements[selectedId] : null
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -97,109 +110,105 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
       content: text,
       timestamp: Date.now(),
     }
-
     const abortController = new AbortController()
 
     set(s => ({
       messages: [...s.messages, userMsg],
       isStreaming: true,
       streamingContent: '',
+      streamingTrace: [],
       error: null,
       abortController,
     }))
 
+    let runId: string | null = null
+    let fullText = ''
+    const trace: AgentTraceEntry[] = []
+    // 累积每一 turn 期间的 tool 调用结果，准备塞进对应 trace entry
+    const pendingToolCallsByTurn = new Map<number, AgentTraceEntry['toolCalls']>()
+    let currentTurn = 0
+
     try {
-      let elementHtml: string | undefined
-      let elementId: string | undefined
-      let selectedNode: Record<string, unknown> | undefined
-
-      if (selectedId) {
-        try {
-          const resp = await requestFromBridge<{
-            html: string
-            tag: string
-            label: string
-            sfId?: string | null
-            component?: string | null
-            role?: string | null
-            variant?: string | null
-            specPath?: string | null
-          }>(
-            { type: 'get-element-html', id: selectedId },
-            'element-html',
-          )
-          elementHtml = stripBridgeAttrs(resp.html)
-          elementId = selectedId
-          const selectedElement = selectionStore.selectedElements[selectedId]
-          selectedNode = {
-            id: resp.sfId || selectedElement?.sfId || selectedId,
-            runtimeId: selectedId,
-            label: resp.label || selectedElement?.label || selectedId,
-            tag: resp.tag,
-            component: resp.component || selectedElement?.component || null,
-            role: resp.role || selectedElement?.role || null,
-            variant: resp.variant || selectedElement?.variant || null,
-            specPath: resp.specPath || selectedElement?.specPath || null,
-          }
-        } catch {
-          // fall through to full-page mode
-        }
-      }
-
-      const response = await api.chat.stream(
+      const response = await api.agent.start(
         editorStore.projectId,
         {
           message: text,
           pageId: page.id,
           pageSchema: page.schema ?? undefined,
-          elementHtml,
-          elementId,
-          selectedNode,
+          selectedNode: selectedElement
+            ? {
+                id: selectedId,
+                label: selectedElement.label,
+                component: selectedElement.component,
+                role: selectedElement.role,
+                variant: selectedElement.variant,
+                specPath: selectedElement.specPath,
+              }
+            : undefined,
         },
         abortController.signal,
       )
 
       if (!response.ok) {
-        const errBody = await response.text()
-        throw new Error(`API ${response.status}: ${errBody}`)
+        const body = await response.text()
+        throw new Error(`Agent ${response.status}: ${body}`)
       }
 
-      let fullContent = ''
-      let htmlApplied = false
-      let appliedMode: ChatMessage['appliedMode']
-
-      for await (const event of parseSSE(response, abortController.signal)) {
+      for await (const event of parseAgentSSE(response, abortController.signal)) {
         switch (event.type) {
-          case 'chunk':
-            fullContent += event.content ?? ''
-            set({ streamingContent: fullContent })
+          case 'run_started':
+            runId = event.runId ?? null
             break
 
-          case 'applied':
-            if (event.schemaOperations) {
-              const currentPage = useEditorStore.getState().getActivePage()
-              if (!currentPage?.schema) {
-                throw new Error('Schema operations require a page schema')
-              }
-              const schemaValidation = validateSchemaOperationResponse({ operations: event.schemaOperations })
-              if (!schemaValidation.ok || !schemaValidation.value) {
-                throw new Error(`Schema operation validation failed: ${schemaValidation.errors.join('; ')}`)
-              }
-              useEditorStore.getState().applySchemaOperations(currentPage.id, schemaValidation.value.operations)
-              htmlApplied = true
-              appliedMode = 'schema'
-              break
-            }
-            if (event.html) {
-              editorStore.pushUndo()
-              editorStore.updatePageHTML(page.id, event.html)
-              htmlApplied = true
-              appliedMode = event.mode === 'diff' ? 'diff' : 'fragment'
+          case 'text':
+            if (event.text) {
+              fullText += event.text
+              set({ streamingContent: fullText })
             }
             break
+
+          case 'step':
+            currentTurn = event.turn ?? currentTurn + 1
+            trace.push({
+              turn: currentTurn,
+              summary: event.summary ?? '',
+              toolCalls: pendingToolCallsByTurn.get(currentTurn) ?? [],
+            })
+            set({ streamingTrace: [...trace] })
+            break
+
+          case 'tool_request': {
+            if (!runId || !event.callId || !event.name) break
+            // dispatch 本地工具
+            const dispatchResult = await dispatchTools([{
+              callId: event.callId,
+              name: event.name,
+              params: (event.params as Record<string, unknown>) ?? {},
+            }])
+            const r = dispatchResult.results[0]
+            // 记到 pending（本 turn 还没来 step 事件之前先攒着）
+            const turnBucket = pendingToolCallsByTurn.get(currentTurn + 1) ?? []
+            turnBucket.push({
+              name: event.name,
+              callId: event.callId,
+              ok: r?.ok ?? false,
+              error: r?.error?.message,
+            })
+            pendingToolCallsByTurn.set(currentTurn + 1, turnBucket)
+            // 报告回服务端
+            await api.agent.submitToolResult(editorStore.projectId, {
+              runId,
+              callId: event.callId,
+              name: event.name,
+              ok: r?.ok ?? false,
+              data: r?.data,
+              error: r?.error,
+            })
+            break
+          }
 
           case 'error':
-            throw new Error(event.message || '服务端错误')
+            throw new Error(event.message || 'Agent 错误')
 
           case 'done':
             break
@@ -209,26 +218,27 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: fullContent,
+        content: fullText || '已完成。',
         timestamp: Date.now(),
-        htmlApplied,
-        appliedMode,
+        trace: trace.length > 0 ? trace : undefined,
       }
 
       set(s => ({
         messages: [...s.messages, assistantMsg],
         isStreaming: false,
         streamingContent: '',
+        streamingTrace: [],
         abortController: null,
       }))
     } catch (err: unknown) {
       if ((err as Error).name === 'AbortError') {
-        set({ isStreaming: false, streamingContent: '', abortController: null })
+        set({ isStreaming: false, streamingContent: '', streamingTrace: [], abortController: null })
         return
       }
       set({
         isStreaming: false,
         streamingContent: '',
+        streamingTrace: [],
         error: (err as Error).message || '请求失败',
         abortController: null,
       })
@@ -238,7 +248,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
   stopStreaming: () => {
     const { abortController } = get()
     abortController?.abort()
-    set({ isStreaming: false, streamingContent: '', abortController: null })
+    set({ isStreaming: false, streamingContent: '', streamingTrace: [], abortController: null })
   },
 
   clearMessages: () => set({ messages: [], error: null }),

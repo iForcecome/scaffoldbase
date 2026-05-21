@@ -121,6 +121,36 @@ export const api = {
       }),
   },
 
+  agent: {
+    /** 启动 agent 流。返回 SSE Response；客户端逐行解析事件。 */
+    start: (projectId: string, body: {
+      message: string
+      pageId?: string
+      pageSchema?: PageSchema | null
+      selectedNode?: unknown
+    }, signal?: AbortSignal) =>
+      fetch(`${BASE}/projects/${projectId}/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      }),
+
+    /** 回报 tool 执行结果给当前 run。 */
+    submitToolResult: (projectId: string, body: {
+      runId: string
+      callId: string
+      name: string
+      ok: boolean
+      data?: unknown
+      error?: { code: string; message: string; details?: unknown }
+    }) =>
+      request<{ delivered: boolean; reason?: string }>(`/projects/${projectId}/agent/tool-results`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
+
   designTokens: {
     list: () => request<unknown[]>('/design-tokens'),
   },
