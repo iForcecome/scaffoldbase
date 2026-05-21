@@ -133,25 +133,38 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
     let currentTurn = 0
 
     try {
-      const response = await api.agent.start(
-        editorStore.projectId,
-        {
-          message: text,
-          pageId: page.id,
-          pageSchema: page.schema ?? undefined,
-          selectedNode: selectedElement
-            ? {
-                id: selectedId,
-                label: selectedElement.label,
-                component: selectedElement.component,
-                role: selectedElement.role,
-                variant: selectedElement.variant,
-                specPath: selectedElement.specPath,
-              }
-            : undefined,
-        },
-        abortController.signal,
-      )
+      // 给 fetch 本身加一个 5s 连接保护：拿不到响应头就报警，避免无声 abort
+      const connectTimeout = setTimeout(() => {
+        if (!abortController.signal.aborted) {
+          // eslint-disable-next-line no-console
+          console.warn('[chat-store] /agent 连接超过 5s 还没拿到响应头 — 检查 server 是否运行 / vite 代理 / 扩展拦截')
+        }
+      }, 5000)
+
+      let response: Response
+      try {
+        response = await api.agent.start(
+          editorStore.projectId,
+          {
+            message: text,
+            pageId: page.id,
+            pageSchema: page.schema ?? undefined,
+            selectedNode: selectedElement
+              ? {
+                  id: selectedId,
+                  label: selectedElement.label,
+                  component: selectedElement.component,
+                  role: selectedElement.role,
+                  variant: selectedElement.variant,
+                  specPath: selectedElement.specPath,
+                }
+              : undefined,
+          },
+          abortController.signal,
+        )
+      } finally {
+        clearTimeout(connectTimeout)
+      }
 
       if (!response.ok) {
         const body = await response.text()
