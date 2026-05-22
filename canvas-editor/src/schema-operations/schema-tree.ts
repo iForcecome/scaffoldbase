@@ -3,7 +3,10 @@ import type { ComponentNode, PageSchema } from '../page-schema/types'
 export type InsertPosition = 'before' | 'after' | 'inside:start' | 'inside:end'
 
 function cloneSchema(schema: PageSchema): PageSchema {
-  return structuredClone(schema)
+  // 用 JSON-clone 而不是 structuredClone：editor-store 的 set 回调把 immer
+  // proxy 当 schema 传过来，structuredClone 在 proxy 上会 DataCloneError；
+  // schema 是 JSON-safe 的纯数据，JSON-clone 是足够且更宽容的方案。
+  return JSON.parse(JSON.stringify(schema))
 }
 
 function visit(nodes: ComponentNode[], id: string): ComponentNode | null {
@@ -69,6 +72,9 @@ function insertIntoNodes(nodes: ComponentNode[], target: string, position: Inser
 }
 
 export function findSchemaNode(schema: PageSchema, id: string): ComponentNode | null {
+  if (schema.page.id === id) {
+    return { id: schema.page.id, component: 'Page', props: {}, children: schema.page.sections }
+  }
   return visit(schema.page.sections, id)
 }
 
@@ -91,7 +97,17 @@ export function updateSchemaNode(schema: PageSchema, id: string, updater: (node:
 
 export function insertSchemaNode(schema: PageSchema, target: string, position: InsertPosition, node: ComponentNode): PageSchema {
   const next = cloneSchema(schema)
-  next.page.sections = insertIntoNodes(next.page.sections, target, position, structuredClone(node))
+  // 同上：AI 传过来的 node 是 JSON 反序列化的，JSON-clone 就够
+  const newNode = JSON.parse(JSON.stringify(node)) as ComponentNode
+  if (target === next.page.id) {
+    if (position === 'inside:start') {
+      next.page.sections = [newNode, ...next.page.sections]
+    } else {
+      next.page.sections = [...next.page.sections, newNode]
+    }
+  } else {
+    next.page.sections = insertIntoNodes(next.page.sections, target, position, newNode)
+  }
   return next
 }
 

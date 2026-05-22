@@ -178,7 +178,9 @@ export function createDefaultPageSchema(pageId: string, title = '新页面'): Pa
 }
 
 export function clonePageSchema(schema: PageSchema, pageOverrides?: Partial<PageSchema['page']>): PageSchema {
-  const clone = structuredClone(schema)
+  // editor-store.duplicatePage 在 immer set 回调里调本函数，schema 是 immer
+  // proxy；JSON-clone 穿透 proxy 拿到纯数据，structuredClone 不行。
+  const clone: PageSchema = JSON.parse(JSON.stringify(schema))
   if (pageOverrides) {
     clone.page = { ...clone.page, ...pageOverrides }
   }
