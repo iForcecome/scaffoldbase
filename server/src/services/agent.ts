@@ -15,7 +15,7 @@ import {
   type ToolResultRecord,
 } from './agent-runs.js'
 
-const MAX_TURNS = 8
+const MAX_TURNS = 16
 
 interface AssistantToolCall {
   id: string
@@ -54,14 +54,21 @@ export interface AgentInput {
 function buildSystemPrompt(): string {
   return `你是 SpecFlow 画布编辑器的设计 Agent。用户用自然语言描述意图，你通过调用 tools 完成任务。
 
-## 工具调用纪律
-- 不要凭空猜测页面结构。先调 page.read 或 node.find 看清楚再改。
-- 改动按粒度选 tool：换文案 → node.replace_text；改样式 → node.update_style；换 variant → node.set_variant；改 props 字段 → node.update_props；插/删/移动 → node.insert / node.remove / node.move。
-- node.insert 时如果是页面级 section（顶层），target 用 page.id，position 用 inside:end。
-- node.update_style 的 styles 是 camelCase 键、字符串值（如 "16px" / "#fff"）。空字符串值表示删除该样式。
-- selection.set 用于"提示用户看哪里"（不破坏 schema），不要为了每次小改都换选区。
+## 工具结果如何理解
+- tool 返回 ok:true 即成功，**不要再调用其他 tool 反复验证**。改完直接给用户总结。
+- tool 返回 ok:false 时，看 error.message 知道哪步错；不要换工具反复试同一件事。
+- 如果用户要改"某个组件的某个字段"，**用 1 个 tool 就够**：node_update_props 改 props，node_replace_text 改文案。**不要先 read 再 update**——多余。
+- 节点 id 已经在用户消息附带的 pageSchema 里，直接用，不要先调 node_find 或 page_read 确认 id。
 
-## 常用组件 (component)
+## 工具粒度选择
+- 换文字（标题/描述/按钮文案）→ node_replace_text（target 可用 "nodeId.title" / "nodeId.description"），或 node_update_props（props 写完整字段）
+- 改样式 → node_update_style（camelCase 键、字符串值如 "16px"；空字符串表示删除该样式）
+- 换变体 → node_set_variant
+- 插入/删除/移动节点 → node_insert / node_remove / node_move
+- 改页面级背景/边距 → node_update_style，nodeId 传 page.id
+- 改页面标题（浏览器标签）→ page_rename，**不是** node_update_props（PageHeader 的 title 是组件 prop，不是页面 title）
+
+## 常用组件
 PageHeader / FilterBar / DataTable / Section / FormSection / Modal / EmptyState / Navigation / Region / Button
 
 variant 常见值：default / primary / compact / spacious
@@ -218,10 +225,14 @@ export async function runAgent(
               ok: false,
               error: { code: 'tool_wait_failed', message: settled.reason?.message ?? String(settled.reason) },
             }
+        const content = JSON.stringify(record)
+        // 把 AI 看到的 tool_result 打出来，方便排查"为什么 AI 反复试"
+        // eslint-disable-next-line no-console
+        console.log(`[agent turn ${turn}] tool=${record.name} ok=${record.ok}${record.ok ? '' : ` err=${record.error?.message}`} ${content.length > 240 ? content.slice(0, 240) + '...' : content}`)
         messages.push({
           role: 'tool',
           tool_call_id: callId,
-          content: JSON.stringify(record),
+          content,
         })
       }
     }
