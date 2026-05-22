@@ -58,6 +58,8 @@ tailwind.config = {
       <a href="#flow" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">数据流</a>
       <a href="#stores" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Stores</a>
       <a href="#agent" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Agent</a>
+      <a href="#conversation" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">多轮对话</a>
+      <a href="#multipage" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">跨页</a>
       <a href="#bridge" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Bridge</a>
       <a href="#future" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">v3 远期</a>
       <a href="#migration" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">迁移</a>
@@ -561,6 +563,217 @@ sendMessage(text)</pre>
 ## 终止
 - tool 返回 ok:true 即成功，<b>不要反复验证</b>
 - 改完给 1-2 句中文总结</pre>
+  </div>
+</section>
+
+<!-- 08.5 · 多轮对话 -->
+<section id="conversation" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-accent-100 text-accent-700 flex items-center justify-center text-sm font-bold">08.5</span>
+    <h2 class="h-section">多轮对话续接</h2>
+  </div>
+
+  <div class="bg-warn/5 border border-warn/40 rounded-xl p-5 mb-6">
+    <div class="text-xs font-semibold text-warn tracking-wider mb-2">当前实现的缺口（P2 留下的）</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      <code class="font-mono text-xs bg-white px-1 rounded">chat-store.sendMessage</code> 每次都是<b>全新 conversation</b>——上一轮 messages 历史<b>没传给</b>下次 agent run。
+      结果：AI 一旦在某轮提问"用紫色还是蓝色？"，用户下条消息回"紫色"时，agent 看不见上下文，只看到孤立的"紫色"两个字——不知道紫色是什么。
+      这条不修，<b>所有"问完用户再行动"的工作流都跑不通</b>。
+    </p>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">v2 改造</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1"><span class="text-ink-3">// chat-store 维护完整 conversation history</span>
+sendMessage(text) &#123;
+  const history = useChatStore.getState().messages   <span class="text-ink-3">// 累积的 user+assistant 消息</span>
+  POST /api/projects/:id/agent &#123;
+    message: text,
+    history: serialize(history),        <span class="text-ink-3">// ← 新</span>
+    pageId, pageSchema, selectedNode
+  &#125;
+&#125;
+
+<span class="text-ink-3">// server agent.ts 用 history 拼 messages</span>
+runAgent(input) &#123;
+  const messages = [
+    &#123; role: 'system', content: buildSystemPrompt() &#125;,
+    ...input.history,                   <span class="text-ink-3">// ← 旧的 user/assistant/tool_calls/tool_results</span>
+    &#123; role: 'user', content: input.userMessage &#125;
+  ]
+  ...
+&#125;</pre>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">History 该带什么</div>
+      <ul class="text-sm text-ink-1 space-y-1 leading-relaxed">
+        <li>• user 消息：原样</li>
+        <li>• assistant 消息：text + tool_calls</li>
+        <li>• tool 消息：tool_call_id + content（结果 JSON）</li>
+        <li>• step 事件、SSE 元事件：丢弃</li>
+      </ul>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="text-xs font-semibold text-warn tracking-wider mb-2">Token 控制</div>
+      <ul class="text-sm text-ink-1 space-y-1 leading-relaxed">
+        <li>• 第一版直发全部 history，简单粗暴</li>
+        <li>• 真碰到爆 token 再做"老消息摘要折叠"</li>
+        <li>• Anthropic prompt cache 接 system + 早期 messages，缓解成本</li>
+        <li>• AI 自己可以 clear_conversation 显式重置（远期）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">request_confirmation Tool · AI 显式提问</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <div class="text-sm text-ink-1 leading-relaxed mb-3">
+      AI 不确定如何继续时，调这个 tool 把问题<b>结构化</b>发给前端。前端不只是显示文字——能渲染成选项按钮，用户点一下直接发送预填回复。
+    </div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">request_confirmation &#123;
+  description: "需要用户确认时调用，等用户下次发消息再继续。",
+  parameters: &#123;
+    question: string,           <span class="text-ink-3">// 简洁、具体的问题</span>
+    options?: string[],         <span class="text-ink-3">// 可选：枚举给用户挑的几个答案</span>
+    affectedPages?: string[]    <span class="text-ink-3">// 可选：本次改动会影响的 page id 列表</span>
+  &#125;
+&#125;</pre>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-6">
+    <div class="text-xs font-semibold text-ink-2 tracking-wider mb-3">前端 ChatBar 渲染示意</div>
+    <div class="bg-ink-0/95 rounded-lg p-4 text-white">
+      <div class="text-xs text-white/60 mb-2">AI 需要确认</div>
+      <div class="text-sm mb-3">把所有页面的主题色统一成什么？</div>
+      <div class="text-[10px] text-white/40 mb-2">影响 3 个页面：首页 / 订单管理 / 设置</div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="bg-brand-600 hover:bg-brand-700 text-white text-xs px-3 py-1.5 rounded-md font-medium">紫色</button>
+        <button class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-md">蓝色</button>
+        <button class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-md">绿色</button>
+        <button class="bg-white/5 hover:bg-white/10 text-white/60 text-xs px-3 py-1.5 rounded-md">其他...</button>
+      </div>
+    </div>
+    <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+      点选项 = 自动发送该选项的文本作为下条用户消息 + tool_result &#123;answered: '紫色'&#125;。AI 续接同一 conversation 继续执行。
+    </div>
+  </div>
+
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">什么时候 AI 该提问</div>
+    <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+      <li>• 跨页一致性改动（颜色/字号/共享 Header 等）</li>
+      <li>• 用户描述模糊（"让首页更好看"——好看是什么风格？）</li>
+      <li>• 不可逆操作（删除多个页面 / 大段重写）</li>
+      <li>• 影响范围 ≥ 2 个页面 / ≥ 5 个节点时建议先告知再做</li>
+    </ul>
+    <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+      ⚠ 反过来，单页小改动（改一句文案、调一个颜色）<b>不要</b>额外问——AI 直接做就好。过度请求确认会让交互变啰嗦。
+    </div>
+  </div>
+</section>
+
+<!-- 08.6 · 跨页操作 -->
+<section id="multipage" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-accent-100 text-accent-700 flex items-center justify-center text-sm font-bold">08.6</span>
+    <h2 class="h-section">跨页操作（多页面整体调整）</h2>
+  </div>
+
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5 mb-6">
+    <p class="text-sm text-ink-1 leading-relaxed">
+      v2 每页是独立 HTML 文档，<b>没有跨页耦合</b>。跨页一致性靠 agent 多轮工作流而非数据层共享。
+      这条决定让 v2 模型简单（不引入 shared layer），代价是 AI 改"统一所有页的某个东西"时要 N 次 html_replace。
+      但因为 AI 是 agent loop + 多轮对话，<b>这件事它能自己规划自己执行</b>，用户体感跟"批量改"一样。
+    </p>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">典型工作流</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-6 mb-6">
+    <pre class="text-xs font-mono leading-6 text-ink-1">User: 把这几个页面的主题色统一一下
+
+Turn 1  AI → page_list()                           <span class="text-ink-3">// 看有多少页</span>
+        ← [&#123;page-1,首页&#125;, &#123;page-2,订单&#125;, &#123;page-3,设置&#125;]
+
+Turn 2  AI → html_read(page-1)                     <span class="text-ink-3">// 看各页现在的色</span>
+        ← &lt;html&gt;...大量 bg-blue-* text-blue-*...&lt;/html&gt;
+Turn 3  AI → html_read(page-2) ← ...bg-emerald-*...
+Turn 4  AI → html_read(page-3) ← ...bg-slate-*...
+
+Turn 5  AI → request_confirmation(&#123;
+            question: '颜色不统一，你想统一成什么色？',
+            options: ['紫色（推荐）', '保持首页蓝色', '其他'],
+            affectedPages: ['page-1', 'page-2', 'page-3']
+          &#125;)
+        <span class="text-ink-3">// 不再调其他 tool，loop 暂停，等用户回复</span>
+
+──── 用户点"紫色" → ChatBar 自动发 "紫色" + tool_result ─────
+
+Turn 6  AI ← 用户回复 + tool_result
+Turn 7  AI → html_replace(page-1, "bg-blue-500", "bg-violet-500")
+        AI → html_replace(page-1, "text-blue-600", "text-violet-600")
+        AI → html_replace(page-2, "bg-emerald-500", "bg-violet-500")
+        AI → html_replace(page-3, "bg-slate-500", "bg-violet-500")
+
+Turn 8  AI → done + "已统一为紫色（影响 3 页，共 4 处样式）"</pre>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">关键设计取舍</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">问题</th>
+          <th class="py-3 px-4 font-medium">v2 选择</th>
+          <th class="py-3 px-4 font-medium">理由</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">跨页一致性</td><td class="py-2 px-4 text-xs">agent 多轮 + N 次 html_replace</td><td class="py-2 px-4 text-xs text-ink-2">不引入 shared 层，模型保持简单；agent 能力承担"批量"</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">共享 Header/Footer</td><td class="py-2 px-4 text-xs">v2 不做；v3 配合 Material/Symbol 一起做</td><td class="py-2 px-4 text-xs text-ink-2">需要 id 命名空间 + fragment 引用机制，独立 phase</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">AI 要不要先看所有页</td><td class="py-2 px-4 text-xs">由 AI 自主选</td><td class="py-2 px-4 text-xs text-ink-2">page_list 拿清单后 AI 决定哪些必须读、按需 html_read。不一刀切</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">影响范围大时要不要确认</td><td class="py-2 px-4 text-xs">是，调 request_confirmation</td><td class="py-2 px-4 text-xs text-ink-2">≥2 页或不可逆操作建议先问；prompt 中写死纪律</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">怎么 undo 跨页改动</td><td class="py-2 px-4 text-xs">每个 html_set effect 独立快照</td><td class="py-2 px-4 text-xs text-ink-2">用户按 N 次 undo 逐页回滚；v3 可加"批量 undo"</td></tr>
+        <tr><td class="py-2 px-4 text-xs">prompt token 成本</td><td class="py-2 px-4 text-xs">直发 history；爆了再做摘要</td><td class="py-2 px-4 text-xs text-ink-2">先观察，过早优化没意义</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">"AI 选要读什么"的 prompt 引导</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1 whitespace-pre-wrap">## 多页操作纪律
+- 用户说"<b>这个页面</b>" → 只看当前 pageId
+- 用户说"<b>所有页面</b>" / "<b>整体</b>" / "<b>统一</b>" / "<b>每个页面</b>" →
+   1. 先 page_list 拿清单
+   2. <b>逐个</b> html_read（不要并行调一堆，loop 是串行的）
+   3. 评估改动是否模糊，模糊则 request_confirmation
+   4. 用户确认后再执行 html_* mutate
+- 改动会影响 ≥2 个页面时，<b>务必先告知用户范围</b>再行动
+- 优先用 html_replace 的精确匹配做<b>跨页同一字符串</b>的批量替换；
+  每页一次调用，不要试图"一个 tool call 改所有页"——目前没这种 tool</pre>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">v3 远期：project_* 批量 tool</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <div class="text-sm text-ink-1 leading-relaxed mb-3">
+      v2 完成后如果跨页场景用得多、AI 重复调用太啰嗦，考虑加 3-4 个跨页 tool。每条 tool 内部循环所有页面，AI 一次调用搞定。
+    </div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">project_replace_all_pages(old, new) → 对所有页执行 html_replace；返回每页结果
+project_set_attribute_all(selector, name, value) → querySelectorAll 跨页匹配
+project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3 shared 层入口）</pre>
+    <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+      不立刻做的原因：在没有共享层的情况下，这些 tool 本质还是批量循环；先观察 AI 用多轮单页 tool 的实际表现，再决定加不加批量 tool。<b>过早抽象会绑死设计。</b>
+    </div>
+  </div>
+
+  <div class="bg-err/5 border border-err/40 rounded-xl p-5">
+    <div class="text-xs font-semibold text-err tracking-wider mb-2">⛔ 跨页纪律</div>
+    <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+      <li>• 影响 ≥2 页且模糊的请求 → <b>必须先 request_confirmation</b></li>
+      <li>• 不要把所有页 html_read 都塞 prompt——大项目会爆 token，按需读</li>
+      <li>• 跨页改动失败时（某页 html_replace 没匹配上）<b>报告用户并停下</b>，不要悄悄跳过</li>
+      <li>• 跨页改动完成后<b>必须给汇总</b>："共改了 N 页 / X 处"——让用户能验证</li>
+    </ul>
   </div>
 </section>
 
