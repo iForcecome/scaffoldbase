@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SpecFlow 架构方案 v2 · HTML-as-truth + AI First</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter','Noto Sans SC','system-ui','sans-serif'], mono: ['JetBrains Mono','SF Mono','Menlo','monospace'] },
+      colors: {
+        brand:   { 50:'#f5f3ff', 100:'#ede9fe', 200:'#ddd6fe', 300:'#c4b5fd', 400:'#a78bfa', 500:'#8b5cf6', 600:'#7c3aed', 700:'#6d28d9', 800:'#5b21b6', 900:'#4c1d95' },
+        accent:  { 50:'#fdf4ff', 100:'#fae8ff', 200:'#f5d0fe', 300:'#f0abfc', 400:'#e879f9', 500:'#d946ef', 600:'#c026d3', 700:'#a21caf' },
+        surface: { 0:'#ffffff', 1:'#f8f9fc', 2:'#f1f3f9', 3:'#e9ecf5', 4:'#dde1ed' },
+        ink:     { 0:'#0f172a', 1:'#334155', 2:'#64748b', 3:'#94a3b8', 4:'#cbd5e1' },
+        ok:'#10b981', warn:'#f59e0b', err:'#ef4444',
+      }
+    }
+  }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter','Noto Sans SC',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  .anchor { scroll-margin-top:80px; }
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace; }
+  details > summary { cursor:pointer; user-select:none; list-style:none; }
+  details > summary::-webkit-details-marker { display:none; }
+  details > summary::before { content:'▶'; display:inline-block; margin-right:8px; font-size:10px; color:#94a3b8; transition:transform .15s; }
+  details[open] > summary::before { transform:rotate(90deg); }
+  pre { font-family:'JetBrains Mono',monospace; }
+  .h-section { font-size:1.5rem; font-weight:700; }
+  .step-num { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+  .grid-pattern { background-image: radial-gradient(circle, #e9ecf5 1px, transparent 1px); background-size: 18px 18px; }
+</style>
+</head>
+<body class="bg-surface-1 text-ink-0">
+
+<header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-surface-3">
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-accent-600 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/></svg>
+      </div>
+      <div>
+        <div class="text-sm font-bold">SpecFlow · 架构方案 v2</div>
+        <div class="text-xs text-ink-3">HTML-as-truth · AI First · 2026-05-22</div>
+      </div>
+    </div>
+    <nav class="hidden lg:flex items-center gap-0.5 text-xs">
+      <a href="#why" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">为什么</a>
+      <a href="#model" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">模型</a>
+      <a href="#tools" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">工具</a>
+      <a href="#id" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">ID</a>
+      <a href="#template" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">模板</a>
+      <a href="#flow" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">数据流</a>
+      <a href="#stores" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Stores</a>
+      <a href="#agent" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Agent</a>
+      <a href="#bridge" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">Bridge</a>
+      <a href="#future" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">v3 远期</a>
+      <a href="#migration" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">迁移</a>
+      <a href="#risks" class="px-2.5 py-1.5 rounded hover:bg-surface-2 text-ink-1">风险</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-10 space-y-20">
+
+<!-- HERO -->
+<section>
+  <div class="text-xs text-brand-600 font-semibold tracking-wider mb-2">SPECFLOW · ARCHITECTURE PLAN v2 · HTML-AS-TRUTH</div>
+  <h1 class="text-4xl font-bold tracking-tight mb-3">AI 用母语写设计：HTML + Tailwind 直接作为真相</h1>
+  <p class="text-ink-2 text-base leading-relaxed max-w-4xl">
+    v1 把 PageSchema（结构化 ComponentNode 树）作为真相，v2 直接把 <b>完整 HTML 文档</b> 作为真相。
+    Schema 层连同 SchemaOperation、component-registry、renderer 全部移除；AI 通过精确文本匹配 + <code class="font-mono text-sm">data-sf-id</code> 锚点定位修改任意 HTML，跟 Cursor / Claude Code 编辑代码同构。
+    样式用 Tailwind 工具类，AI 立刻能调用海量训练数据，做出真正像样的设计。
+  </p>
+  <div class="mt-6 flex flex-wrap gap-2 text-xs">
+    <span class="badge bg-brand-100 text-brand-700">HTML-as-truth</span>
+    <span class="badge bg-accent-100 text-accent-700">Tailwind in iframe</span>
+    <span class="badge bg-ok/10 text-ok">Tools = product API</span>
+    <span class="badge bg-warn/10 text-warn">Cursor-style text matching</span>
+    <span class="badge bg-ink-1 text-white">删 ~3000 行 v1 schema 代码</span>
+  </div>
+</section>
+
+<!-- 01 · 为什么切到 HTML -->
+<section id="why" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">01</span>
+    <h2 class="h-section">为什么从 schema-as-truth 转向 HTML-as-truth</h2>
+  </div>
+
+  <div class="bg-gradient-to-br from-brand-50 to-accent-50 border border-brand-200 rounded-xl p-6 mb-6">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">触发点</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      v1 完工后让 AI "设计一个首页"，输出永远是 <code class="font-mono text-xs bg-white px-1 rounded">PageHeader + Section + DataTable</code> 三件套——
+      不是 AI 无能，是 schema 词汇表（~10 个语义组件 × ~3 个 variant）<b>装不下设计师脑子里那张图</b>。
+      Box 兜底也只是绕过 schema，并没有让 AI 用上母语。
+    </p>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">v1 vs v2 全面对比</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">维度</th>
+          <th class="py-3 px-4 font-medium">v1 (schema-as-truth)</th>
+          <th class="py-3 px-4 font-medium">v2 (HTML-as-truth)</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">真相源</td><td class="py-2 px-4 text-xs">ComponentNode 树（结构化 JSON）</td><td class="py-2 px-4 text-xs">完整 HTML 文档字符串</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">表达上限</td><td class="py-2 px-4 text-xs">已注册组件 × variant 枚举</td><td class="py-2 px-4 text-ok text-xs">HTML 的全部表达力</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">AI 训练熟悉度</td><td class="py-2 px-4 text-err text-xs">≈ 0（我们自造的词汇）</td><td class="py-2 px-4 text-ok text-xs">极高（GitHub / docs 海量样本）</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">样式系统</td><td class="py-2 px-4 text-xs">200 行手写 <code class="font-mono text-xs">sf-*</code> CSS + token</td><td class="py-2 px-4 text-ok text-xs">Tailwind v4 工具类 + 可选自定义 CSS</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">定位机制</td><td class="py-2 px-4 text-xs">SchemaOperation 走 nodeId</td><td class="py-2 px-4 text-xs">data-sf-id 锚点 + 精确文本匹配（Cursor 风格）</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">上传 HTML 保真</td><td class="py-2 px-4 text-err text-xs">必须解析成 schema，信息有损</td><td class="py-2 px-4 text-ok text-xs">原稿直接是真相，零损</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">渲染管线</td><td class="py-2 px-4 text-xs">component-registry → HTML 字符串</td><td class="py-2 px-4 text-ok text-xs">无（HTML 直接灌 srcDoc）</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">写操作</td><td class="py-2 px-4 text-xs">7 类 SchemaOperation</td><td class="py-2 px-4 text-xs">10 个 HTML tool</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">undo/redo 单元</td><td class="py-2 px-4 text-xs">PageSnapshot &#123;html, schema&#125;</td><td class="py-2 px-4 text-xs">PageSnapshot &#123;html&#125; — 更简单</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-medium">v1 代码行数（schema 相关）</td><td class="py-2 px-4 text-xs">~3000 行</td><td class="py-2 px-4 text-ok text-xs">删除</td></tr>
+        <tr><td class="py-2 px-4 font-medium">Cursor / Claude Code 同构</td><td class="py-2 px-4 text-err text-xs">不</td><td class="py-2 px-4 text-ok text-xs">是 — Edit(file, old, new) 心智完全对齐</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">v1 沉淀仍然保留</div>
+      <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+        <li>• 6 个 store 切分（editor/viewport/selection/tool/history/chat）</li>
+        <li>• Bridge RPC（含 requestId）协议</li>
+        <li>• stores/coordinate.ts 跨 store 订阅模式</li>
+        <li>• ESLint 禁止数据 store 互引</li>
+        <li>• Tool surface（P1 引入的）+ dispatcher + dry_run</li>
+        <li>• Agent runtime（P2 引入的）SSE 协议</li>
+        <li>• data-sf-id 选区机制</li>
+      </ul>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-5">
+      <div class="text-xs font-semibold text-err tracking-wider mb-2">v1 沉淀要丢掉</div>
+      <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">schema-operations/</code> 整目录</li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">page-schema/component-registry.ts</code></li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">page-schema/component-validation.ts</code></li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">page-schema/validate.ts</code></li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">renderPageSchemaToHtml</code> 及全部组件渲染函数</li>
+        <li>• 手写 <code class="font-mono text-xs bg-surface-2 px-1 rounded">sf-*</code> CSS（~200 行）</li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">tools/node-tools.ts</code> 9 个 schema tool</li>
+        <li>• <code class="font-mono text-xs bg-surface-2 px-1 rounded">server/scripts/migrate-pages-to-schema.ts</code>（Playwright）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 02 · 核心模型 -->
+<section id="model" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">02</span>
+    <h2 class="h-section">核心模型</h2>
+  </div>
+
+  <div class="bg-white border-2 border-brand-500 rounded-xl p-6 mb-4 shadow-sm">
+    <div class="font-semibold mb-3">Page 数据形状</div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">interface Page {
+  id: string
+  title: string
+  html: string        <span class="text-ink-3">// 完整 HTML 文档，含 &lt;!DOCTYPE&gt;...&lt;/html&gt;</span>
+                      <span class="text-ink-3">// Tailwind CDN 已注入 &lt;head&gt;</span>
+                      <span class="text-ink-3">// 所有可交互元素带 data-sf-id="sf-xxxxxxxx"</span>
+}
+
+<span class="text-ink-3">// schema 字段废除。DB jsonb 里旧字段保留但不读不写，下次 migration 删列。</span></pre>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-3 mb-4 text-xs">
+    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">单一字段</b><br>html 即真相，所见即所得</div>
+    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">零编译</b><br>没有 renderer，srcDoc = injectBridge(html)</div>
+    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">无解析层</b><br>tool 内部用浏览器 native DOMParser，零依赖</div>
+  </div>
+
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">关键洞察 · "AI 母语"</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      AI 模型训练时见过的最多文本是 <b>HTML + CSS + JS</b>，其次是 <b>各种 framework 代码</b>。
+      ComponentNode JSON 这种我们自造的结构，AI 从来没见过、要现学，每个 prompt 都要重申词汇表。
+      切到 HTML 等于让 AI 用母语工作——质量、稳定性、token 效率全面提升。
+    </p>
+  </div>
+</section>
+
+<!-- 03 · 工具集 -->
+<section id="tools" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">03</span>
+    <h2 class="h-section">工具集 · 10 个 HTML tool</h2>
+  </div>
+
+  <p class="text-sm text-ink-2 mb-4 leading-relaxed">
+    Tool 是 product 的真正 API，UI 按钮和 AI agent 都通过 dispatchTools 派发。
+    HTML tool 全部走 <code class="font-mono text-xs bg-surface-2 px-1 rounded">html_set</code> effect，由 dispatcher 调 editor-store.setPageHtml 落地，自动 push 历史快照。
+  </p>
+
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">Tool</th>
+          <th class="py-3 px-4 font-medium">用途</th>
+          <th class="py-3 px-4 font-medium">关键参数</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2 bg-surface-1/50">
+          <td colspan="3" class="py-1.5 px-4 text-[11px] font-semibold text-ink-3 uppercase tracking-wider">读 · read</td>
+        </tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_read</td><td class="py-2 px-4 text-xs">取节点 outerHTML，无 nodeId 返回整页</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId?, mode?</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_find</td><td class="py-2 px-4 text-xs">按 tag/class/text/dataAttr 查找节点，返回 id + path 列表</td><td class="py-2 px-4 text-xs font-mono">pageId, query: &#123;tag, classContains, textContains, dataAttr&#125;</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_get_computed_style</td><td class="py-2 px-4 text-xs">通过 bridge 取渲染后的样式（读 paint 阶段值）</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId</td></tr>
+        <tr class="border-b border-surface-2 bg-surface-1/50">
+          <td colspan="3" class="py-1.5 px-4 text-[11px] font-semibold text-ink-3 uppercase tracking-wider">改 · mutate</td>
+        </tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_replace</td><td class="py-2 px-4 text-xs"><b>Cursor 同款</b>：old_html 精确文本匹配，唯一时替换；多匹配返回 ambiguous</td><td class="py-2 px-4 text-xs font-mono">pageId, old_html, new_html</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_insert</td><td class="py-2 px-4 text-xs">以 anchorId 为锚点插入新片段，position: before/after/inside-start/inside-end</td><td class="py-2 px-4 text-xs font-mono">pageId, anchorId, html, position</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_remove</td><td class="py-2 px-4 text-xs">按 id 删除节点</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_set_attribute</td><td class="py-2 px-4 text-xs">设/删属性，最常用 class / style / href / src</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId, name, value: string|null</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_replace_text</td><td class="py-2 px-4 text-xs">替换节点的纯文本（不解析 HTML）</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId, text</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">html_wrap</td><td class="py-2 px-4 text-xs">用 wrapper 包裹 nodeId（升级容器层级）</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId, wrapper</td></tr>
+        <tr><td class="py-2 px-4 font-mono text-xs">html_unwrap</td><td class="py-2 px-4 text-xs">删除节点保留子节点（拍扁层级）</td><td class="py-2 px-4 text-xs font-mono">pageId, nodeId</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">html_replace 精确匹配语义（Cursor 同构）</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-6">
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">const occurrences = countOccurrences(page.html, old_html)
+if (occurrences === 0) return &#123; ok: false, error: &#123; code: 'not_found', message: 'old_html 未匹配到' &#125; &#125;
+if (occurrences > 1) return &#123;
+  ok: false,
+  error: &#123; code: 'ambiguous', message: '${occurrences} 处匹配，请在 old_html 加更多上下文', details: &#123; count &#125; &#125;
+&#125;
+const withIds = assignMissingIds(new_html)      <span class="text-ink-3">// 给新片段缺失的 data-sf-id 自动补</span>
+const nextHtml = page.html.replace(old_html, withIds)
+return &#123; ok: true, effects: [&#123; kind: 'html_set', pageId, html: nextHtml &#125;] &#125;</pre>
+    <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+      AI 误判时唯一的反馈是 "ambiguous + count"，它会自动在 old_html 加更多上下文（前后兄弟节点 / data-sf-id）使其唯一——
+      这是 Cursor / Claude Code 在生产环境跑了一年的鲁棒模式。
+    </div>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">保留的 v1 tool（10 个）</h3>
+  <div class="grid md:grid-cols-2 gap-3 text-xs">
+    <div class="bg-white border border-surface-3 rounded p-3">
+      <div class="font-semibold mb-1">page_*（页面级，7 个）</div>
+      <div class="font-mono text-ink-2">page_list / page_read / page_create / page_delete / page_duplicate / page_rename / page_set_active</div>
+    </div>
+    <div class="bg-white border border-surface-3 rounded p-3">
+      <div class="font-semibold mb-1">selection_* + history_*（3 个）</div>
+      <div class="font-mono text-ink-2">selection_set / selection_hover / history_undo / history_redo</div>
+    </div>
+  </div>
+  <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+    <code class="font-mono bg-surface-2 px-1 rounded">node_*</code> 9 个 tool 整组删除——已被 html_* 取代。
+  </div>
+</section>
+
+<!-- 04 · ID 策略 -->
+<section id="id" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-warn/20 text-warn flex items-center justify-center text-sm font-bold">04</span>
+    <h2 class="h-section">ID 策略</h2>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-6 mb-4">
+    <div class="font-semibold mb-3">data-sf-id 规则</div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">format:  sf-&#123;8 char base36&#125;        <span class="text-ink-3">// 例: sf-7k9x2pqv</span>
+scope:   每个 page 内唯一       <span class="text-ink-3">// 跨页不要求唯一</span>
+意义:    纯锚点，无语义           <span class="text-ink-3">// AI 不需要"看懂"这串字符</span>
+赋予时机: ① 创建默认页时模板已带
+         ② 上传 HTML 时 ingest walker 给所有元素补
+         ③ tool 写入新 HTML 片段时 assignMissingIds 自动补
+         ④ iframe 内 bridge-script 不再 assignIds（v1 那套删了）</pre>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4 mb-4">
+    <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+      <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">为什么不让 AI 生成 id</div>
+      <ul class="text-sm text-ink-1 space-y-1 leading-relaxed">
+        <li>• AI 重复造同样 id 风险高</li>
+        <li>• 增加 token 成本（写 id 不带语义价值）</li>
+        <li>• tool 内部 assignMissingIds 0 成本</li>
+      </ul>
+    </div>
+    <div class="bg-ok/5 border border-ok/40 rounded-xl p-5">
+      <div class="text-xs font-semibold text-ok tracking-wider mb-2">AI 工作流</div>
+      <ol class="text-sm text-ink-1 space-y-1 leading-relaxed list-decimal pl-4">
+        <li>html_read 看 HTML，里面所有 id 都暴露</li>
+        <li>认定要改的 id（或要插入位置的锚点 id）</li>
+        <li>调对应 tool；新片段不必带 id（自动补）</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bg-err/5 border border-err/40 rounded-xl p-5">
+    <div class="text-xs font-semibold text-err tracking-wider mb-2">⛔ ID 纪律</div>
+    <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
+      <li>• <b>id 不承载语义</b>，"sf-7k9x2pqv" 而不是 "page1.header"——v1 那种语义路径维护代价大</li>
+      <li>• 节点结构变了 <b>id 也不变</b>，便于持续编辑（修一处不影响别处）</li>
+      <li>• 不要用 id 做 CSS 选择器（用 class）</li>
+      <li>• 序列化时如发现非 sf- 前缀的 id，保留但不当锚点</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 05 · 默认模板 -->
+<section id="template" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-accent-100 text-accent-700 flex items-center justify-center text-sm font-bold">05</span>
+    <h2 class="h-section">默认页 HTML 模板</h2>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-6 mb-4">
+    <div class="font-semibold mb-3">createDefaultPageHtml(title)</div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">&lt;!DOCTYPE html&gt;
+&lt;html lang="zh-CN"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8"&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;
+  &lt;title&gt;&#123;title&#125;&lt;/title&gt;
+  &lt;script src="https://cdn.tailwindcss.com"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body data-sf-id="sf-xxxxxxxx" class="min-h-screen bg-slate-50 text-slate-900 antialiased"&gt;
+  &lt;header data-sf-id="sf-xxxxxxxx" class="bg-white border-b border-slate-200"&gt;
+    &lt;div class="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between"&gt;
+      &lt;h1 data-sf-id="sf-xxxxxxxx" class="text-2xl font-bold tracking-tight"&gt;&#123;title&#125;&lt;/h1&gt;
+    &lt;/div&gt;
+  &lt;/header&gt;
+  &lt;main data-sf-id="sf-xxxxxxxx" class="max-w-7xl mx-auto px-6 py-12"&gt;
+    &lt;p data-sf-id="sf-xxxxxxxx" class="text-slate-500"&gt;从这里开始构建你的页面。&lt;/p&gt;
+  &lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-3 text-xs">
+    <div class="bg-white border border-surface-3 rounded-lg p-4">
+      <div class="text-[10px] font-semibold text-brand-700 tracking-wider mb-1">最小可用</div>
+      <div class="text-ink-1 leading-relaxed">5 个节点，覆盖典型 header + main 骨架；AI 立刻可在 main 里 insert 内容</div>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-lg p-4">
+      <div class="text-[10px] font-semibold text-brand-700 tracking-wider mb-1">Tailwind 已就绪</div>
+      <div class="text-ink-1 leading-relaxed">CDN 注入 head，AI 可直接用任意 utility class 不必判断</div>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-lg p-4">
+      <div class="text-[10px] font-semibold text-brand-700 tracking-wider mb-1">无样式定制</div>
+      <div class="text-ink-1 leading-relaxed">不预设任何 brand 色或字体；用户/AI 改 body class 就能换主题</div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 · 数据流 -->
+<section id="flow" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">06</span>
+    <h2 class="h-section">数据流</h2>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-8">
+    <pre class="text-xs font-mono leading-6 text-ink-1">用户意图（自然语言 / UI 操作）
+         │
+         ▼
+   ┌──────────────────────────────────┐
+   │  dispatchTools([&#123;name, params&#125;])  │   ← UI 按钮 + AI Agent 共用入口
+   └──────────────┬───────────────────┘
+                  │
+                  ▼
+   ┌──────────────────────────────────┐
+   │  tool.execute(params, ctx)        │   ← 纯函数，不直接 mutate
+   │  返回 ToolResult &#123;effects[]&#125;       │     effects 是声明式副作用
+   └──────────────┬───────────────────┘
+                  │
+                  ▼
+   ┌──────────────────────────────────┐
+   │  dispatcher.applyEffect()         │
+   │  - html_set → setPageHtml         │   ← 一刀真相落地
+   │  - page_*  → editor-store actions
+   │  - selection_* → selection-store
+   │  - history_* → history-store
+   └──────────────┬───────────────────┘
+                  │
+                  ▼
+   ┌──────────────────────────────────┐
+   │  editor-store.setPageHtml(id, h)  │
+   │  ① pushUndo(prevSnapshot)         │
+   │  ② page.html = h                  │
+   │  ③ mark dirty                     │
+   └──────────────┬───────────────────┘
+                  │
+                  ▼
+   iframe srcDoc = injectBridge(page.html)
+                  │
+                  ▼
+            画布渲染（含 Tailwind）</pre>
+  </div>
+
+  <div class="mt-6 grid md:grid-cols-3 gap-3 text-xs">
+    <div class="bg-ok/5 border border-ok/30 rounded-lg p-4">
+      <div class="font-semibold text-ok mb-2">✓ 单一写入路径</div>
+      <div class="text-ink-1 leading-relaxed">UI / AI / 上传链路最终都通过 setPageHtml；undo/redo 自动覆盖。</div>
+    </div>
+    <div class="bg-ok/5 border border-ok/30 rounded-lg p-4">
+      <div class="font-semibold text-ok mb-2">✓ Effect 声明式</div>
+      <div class="text-ink-1 leading-relaxed">Tool 不直接调 store，dispatcher 决定是否 apply（dry_run / Draft 层都能拦截）。</div>
+    </div>
+    <div class="bg-ok/5 border border-ok/30 rounded-lg p-4">
+      <div class="font-semibold text-ok mb-2">✓ 无渲染层</div>
+      <div class="text-ink-1 leading-relaxed">v1 的 renderPageSchemaToHtml 整组删除；page.html 已经是可渲染产物。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 · Stores -->
+<section id="stores" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">07</span>
+    <h2 class="h-section">Store 切分（v1 沿用，无变化）</h2>
+  </div>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">editor-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">pages: Page[]
+activePageId
+dirtyPageIds
+
+setPageHtml(id, html)  ← 新
+loadProject / save
+addPage / deletePage / ...</pre>
+      <div class="text-[10px] text-ink-3 mt-2">v1 的 applySchemaOperations 删除，替换为 setPageHtml。</div>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">selection-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">selectedIds[]
+hoveredId
+selectedStyles
+selectedElements</pre>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">tool-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">activeTool
+leftPanelOpen
+rightPanelOpen
+editingTextId</pre>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">history-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">undoStack: &#123;html&#125;[]
+redoStack: &#123;html&#125;[]
+<span class="text-ink-3">// snapshot 缩成只有 html，
+// schema 字段删除</span></pre>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">viewport-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">viewport &#123;x,y,zoom&#125;
+device
+iframeHeight</pre>
+    </div>
+    <div class="bg-white border border-surface-3 rounded-xl p-4">
+      <div class="font-semibold text-sm mb-2">chat-store</div>
+      <pre class="text-[11px] font-mono text-ink-2 leading-5">messages[]
+isStreaming
+streamingTrace[]
+sendMessage(text)</pre>
+    </div>
+  </div>
+
+  <div class="mt-4 bg-surface-1 border border-surface-3 rounded-xl p-5 text-sm text-ink-1 leading-relaxed">
+    <div class="text-xs font-semibold text-ink-2 tracking-wider mb-2">协调原则（v1 沿用）</div>
+    数据 store（viewport/selection/tool/history）之间禁止互相 import（ESLint 强制）。
+    跨 store 副作用走 <code class="font-mono text-xs bg-white px-1 rounded">stores/coordinate.ts</code> 的订阅模式。
+    editor-store / chat-store / coordinate.ts 是唯一允许跨 store 调用的协调者。
+  </div>
+</section>
+
+<!-- 08 · Agent -->
+<section id="agent" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-accent-100 text-accent-700 flex items-center justify-center text-sm font-bold">08</span>
+    <h2 class="h-section">Agent 协议（v2 微调）</h2>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-6 mb-4">
+    <div class="font-semibold mb-3">服务端循环（agent.ts）</div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">for (let turn = 1; turn &lt;= MAX_TURNS; turn++) &#123;
+  choice = await callAI(messages, tools=[html_*, page_*, ...])
+  if (choice.text) emit.text(choice.text)
+  emit.step(&#123;turn, summary&#125;)
+  if (no tool_calls) &#123; emit.done(); return &#125;
+
+  for each tool_call:
+    emit.toolRequest(callId, name, params)    <span class="text-ink-3">// SSE 给 client</span>
+    pendingCallIds.push(callId)
+
+  results = await Promise.allSettled(
+    pendingCallIds.map(id => awaitToolResult(run, id))
+  )
+  messages.push(...results as role:'tool' content:JSON.stringify(result))
+&#125;</pre>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">SSE 事件协议</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">事件 type</th>
+          <th class="py-3 px-4 font-medium">载荷</th>
+          <th class="py-3 px-4 font-medium">客户端动作</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">run_started</td><td class="py-2 px-4 text-xs">&#123;runId&#125;</td><td class="py-2 px-4 text-xs">存 runId 用于回报</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">text</td><td class="py-2 px-4 text-xs">&#123;text&#125;</td><td class="py-2 px-4 text-xs">累加显示</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">step</td><td class="py-2 px-4 text-xs">&#123;turn, summary&#125;</td><td class="py-2 px-4 text-xs">追加 trace</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">tool_request</td><td class="py-2 px-4 text-xs">&#123;callId, name, params&#125;</td><td class="py-2 px-4 text-xs">dispatchTools → POST /tool-results</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">done</td><td class="py-2 px-4 text-xs">&#123;&#125;</td><td class="py-2 px-4 text-xs">完成本次 turn</td></tr>
+        <tr><td class="py-2 px-4 font-mono text-xs">error</td><td class="py-2 px-4 text-xs">&#123;message&#125;</td><td class="py-2 px-4 text-xs">弹错</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">v2 System Prompt（核心摘要）</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1 whitespace-pre-wrap">你是 SpecFlow 画布编辑器的 AI 设计 Agent。所有页面是<b>完整 HTML 文档</b>；样式用 Tailwind 工具类。
+
+## 工作流
+1. 调 html_read 看当前 HTML 结构和 data-sf-id
+2. 决定改动后选 tool：
+   - 改一段 HTML 区域 → html_replace（精确文本匹配；不唯一时多带上下文）
+   - 插新区块 → html_insert（指定 anchorId + position）
+   - 删节点 → html_remove
+   - 改单个属性（class、href、src）→ html_set_attribute
+   - 改纯文本 → html_replace_text
+   - 升级层级（加包裹/拍扁）→ html_wrap / html_unwrap
+
+## 设计审美
+- <b>大量使用 Tailwind 工具类，不要写自定义 CSS</b>
+- 现代设计图案：hero / 渐变 banner / 卡片网格 / metric 大数字 / icon+文字
+- 颜色：bg-gradient-to-br from-violet-500 to-fuchsia-500、text-slate-900、border-slate-200 等
+- 圆角：rounded-2xl / rounded-3xl 比 rounded-md 更有现代感
+- 间距：py-12 py-16 起步，small 时 py-6
+- 字体：text-3xl/4xl/5xl 大胆使用；font-bold tracking-tight 是默认
+
+## ID
+- 不要自己造 data-sf-id，tool 内部自动补
+
+## 终止
+- tool 返回 ok:true 即成功，<b>不要反复验证</b>
+- 改完给 1-2 句中文总结</pre>
+  </div>
+</section>
+
+<!-- 09 · Bridge -->
+<section id="bridge" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">09</span>
+    <h2 class="h-section">Bridge 协议（v1 沿用 + 微调）</h2>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <div class="font-semibold mb-3 text-sm">iframe ↔ host 消息（v2 后清单）</div>
+    <div class="grid md:grid-cols-2 gap-3 text-xs">
+      <div>
+        <div class="font-semibold text-ink-2 mb-1">iframe → host</div>
+        <ul class="font-mono text-ink-1 space-y-0.5 leading-5">
+          <li>ready</li>
+          <li>element-click &#123;id, rect, label, sfId, ...&#125;</li>
+          <li>element-hover &#123;id, rect&#125;</li>
+          <li>element-rect-update &#123;id, rect&#125;</li>
+          <li>edit-done &#123;id, _rid&#125;</li>
+          <li>navigate-page &#123;pageId&#125;</li>
+          <li>iframe-wheel &#123;...&#125;</li>
+          <li class="text-ink-3 italic">computed-style / element-rect / element-html → 含 _rid</li>
+        </ul>
+      </div>
+      <div>
+        <div class="font-semibold text-ink-2 mb-1">host → iframe</div>
+        <ul class="font-mono text-ink-1 space-y-0.5 leading-5">
+          <li>set-mode（design / preview）</li>
+          <li>get-rect / get-computed-style / get-element-html（含 _rid）</li>
+          <li>start-edit（contentEditable 入口）</li>
+          <li>update-text（文本节点回写）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="text-[11px] text-ink-3 mt-3 leading-relaxed">
+      <b>不再存在</b>：execute-operations（v1 SchemaOp 残留）、replace-element-html（已被 html_replace tool 取代）、assignIds 自动赋 id（id 由 tool/ingest 阶段就绪）。
+    </div>
+  </div>
+
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">关键差异：iframe 不再"修改"DOM</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      v1 时 iframe 内 bridge-script 会响应 execute-operations 直接 mutate DOM；v2 起 <b>所有修改都通过 setPageHtml 整页重灌</b>。
+      iframe 仅承担：选中/悬停事件、computed-style 查询、文本原位编辑。Bridge 变得更瘦，protocol 更纯。
+    </p>
+  </div>
+</section>
+
+<!-- 10 · 远期 -->
+<section id="future" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-ok/20 text-ok flex items-center justify-center text-sm font-bold">10</span>
+    <h2 class="h-section">v3 远期：在 HTML 上叠语义</h2>
+  </div>
+
+  <p class="text-sm text-ink-2 mb-6 leading-relaxed">
+    HTML 是真相，但产品形态需要 spec / material / token 等高层抽象。v3 不再造结构化 schema，而是在 HTML 节点上叠加 <b>语义属性</b>——AI 和工具读 DOM 的 data-* 属性提取语义层。
+  </p>
+
+  <h3 class="text-lg font-semibold mb-3">语义属性约定</h3>
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-6">
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">&lt;section data-sf-id="sf-7k9x2pqv"
+         <span class="text-brand-700">data-sf-component="PricingTable"</span>      <span class="text-ink-3">// 该节点是个"定价表"</span>
+         <span class="text-brand-700">data-sf-role="cta-block"</span>               <span class="text-ink-3">// 在页面里担当 CTA 区</span>
+         class="bg-gradient-to-br from-violet-500 to-fuchsia-500 ..."&gt;
+  &lt;h2 <span class="text-brand-700">data-sf-role="title"</span>&gt;Pricing&lt;/h2&gt;
+  &lt;button <span class="text-brand-700">data-sf-role="action"</span>
+          <span class="text-brand-700">data-sf-action="navigate:pricing"</span>&gt;Get Started&lt;/button&gt;
+  &lt;div <span class="text-brand-700">data-sf-bind="plans[]"</span>&gt;          <span class="text-ink-3">// 数据绑定占位</span>
+    ...
+  &lt;/div&gt;
+&lt;/section&gt;</pre>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-4">
+    <div class="bg-white border-2 border-accent-300 rounded-xl p-5">
+      <div class="badge bg-accent-100 text-accent-700 mb-3">Spec 派生</div>
+      <div class="text-sm text-ink-1 leading-relaxed">walk DOM 找 data-sf-action / data-sf-bind / data-sf-component → 生成 spec.pages[].actions / data.models。架构等价于 v1 的 spec.derive，但走 HTML。</div>
+    </div>
+    <div class="bg-white border-2 border-ok/40 rounded-xl p-5">
+      <div class="badge bg-ok/10 text-ok mb-3">Material 库</div>
+      <div class="text-sm text-ink-1 leading-relaxed">Material = HTML 片段 + 占位符。<code class="font-mono text-xs">&#123;&#123;title&#125;&#125;</code> 模板替换实例化。比"参数化 ComponentNode"还简洁。</div>
+    </div>
+    <div class="bg-white border-2 border-warn/40 rounded-xl p-5">
+      <div class="badge bg-warn/10 text-warn mb-3">Token 系统</div>
+      <div class="text-sm text-ink-1 leading-relaxed">Tailwind config.theme.extend 从项目 token 派生；切风格 → 修 head 里 tailwind.config 注入 → 整页重渲。</div>
+    </div>
+  </div>
+
+  <div class="mt-6 bg-brand-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">为什么这条路更可持续</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      HTML + data-* 属性是 web 二十年的语义层标准（microdata / RDFa 同套思路）。
+      AI 训练数据里大量样本就是"div + 语义 class + data 属性"的组合，
+      我们叠 data-sf-* 等于给 AI 一套它<b>已经会</b>的标记语言——比让它学新 JSON schema 自然得多。
+    </p>
+  </div>
+</section>
+
+<!-- 11 · 迁移路径 -->
+<section id="migration" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">11</span>
+    <h2 class="h-section">迁移路径 · β1-β8 · 每步可验证可回滚</h2>
+  </div>
+
+  <div class="bg-gradient-to-r from-brand-50 to-accent-50 border border-brand-200 rounded-xl p-4 mb-6 text-sm text-ink-1">
+    每步独立 commit。后续步骤依赖前一步通过 tsc + UI smoke test。预计总工时 <b>5-6 天</b>。
+  </div>
+
+  <div class="space-y-3">
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β1</span>
+        <div class="flex-1"><div class="font-semibold">Page 模型瘦身</div><div class="text-xs text-ink-3">删除 Page.schema 字段；UI 流照常跑</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>改</b>：editor-store.Page、services/api.ts.Page、server/routes/pages.ts.Page、ingestion.ts、db/schema.ts pages 类型注释</div>
+        <div><b>不动</b>：DB 里旧 schema 字段保留（不读不写，下次 migration 删列）</div>
+        <div><b>验证</b>：tsc 0 error；建项目、切页、改标题、保存都正常（虽然样式仍是 v1 sf-* 样式）</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β2</span>
+        <div class="flex-1"><div class="font-semibold">默认模板 + HTML 解析基础设施</div><div class="text-xs text-ink-3">html/ 目录、DOMParser 封装、injectBridge 直传 html</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~1d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>新增</b>：html/template.ts (createDefaultPageHtml), html/id.ts (genId + assignMissingIds), html/parse.ts (parsePage/parseFragment/serializeDoc), html/traverse.ts (findById/findByQuery/walkAll)</div>
+        <div><b>改</b>：editor-store.addPage 用模板；ContentIFrame.tsx srcDoc = injectBridge(page.html)</div>
+        <div><b>删</b>：renderPageSchemaToHtml 调用链（保留函数本身到 β7 再删）</div>
+        <div><b>验证</b>：新建项目 → 画布是 Tailwind 风格的清爽页面；Network 看到 Tailwind CDN 加载</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β3</span>
+        <div class="flex-1"><div class="font-semibold">10 个 HTML 工具实现</div><div class="text-xs text-ink-3">tools/html-tools.ts + dispatcher html_set effect + editor-store.setPageHtml</div></div>
+        <span class="badge bg-warn/20 text-warn">~1d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>新增</b>：tools/html-tools.ts 实现 10 个 tool；dispatcher 加 html_set 分支</div>
+        <div><b>改</b>：editor-store 新增 setPageHtml(id, html) 含 history pushUndo；ToolEffect 加 html_set kind</div>
+        <div><b>验证</b>：console 里 dispatchTools([&#123;name:'html_replace',...&#125;]) 能改 iframe 视觉，undo 能回滚</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β4</span>
+        <div class="flex-1"><div class="font-semibold">服务端 tool schema + system prompt 重写</div><div class="text-xs text-ink-3">agent-tools-schema.ts 切到 html_*；新 prompt 教 Tailwind</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>改</b>：server/services/agent-tools-schema.ts 删 node_* 加 html_*；agent.ts 系统 prompt 重写</div>
+        <div><b>验证</b>：curl 发"设计个 SaaS 首页"→ 服务端日志看到 AI 调 html_read + html_replace，浏览器画布出现 hero/卡片/渐变</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β5</span>
+        <div class="flex-1"><div class="font-semibold">LayerTree 改读 DOM</div><div class="text-xs text-ink-3">不再用 schema，DOMParser 解析 body 子树</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>改</b>：LeftPanel/LayerTree.tsx 用 useMemo + DOMParser(page.html) 算节点树；拖拽 dispatch html_remove + html_insert</div>
+        <div><b>验证</b>：AI 改完 HTML，LayerTree 自动反映；拖拽节点能改变 HTML 结构</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-brand-600 text-white">β6</span>
+        <div class="flex-1"><div class="font-semibold">右面板派发 html_set_attribute</div><div class="text-xs text-ink-3">5 个 Section 全切 inline style 路线</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>改</b>：Layout/Appearance/Typography/Display/PageProperties 五个 section 的 update 函数 → dispatchTools html_set_attribute(name='style', value=合并后字符串)</div>
+        <div><b>验证</b>：选元素 → 拖宽度滑块 → 元素变宽，HTML 里看到 style="width: 300px"</div>
+      </div>
+    </details>
+
+    <details class="bg-white border border-surface-3 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-err text-white">β7</span>
+        <div class="flex-1"><div class="font-semibold">清理 schema 残留（大扫除）</div><div class="text-xs text-ink-3">删 3000 行 schema 代码 + Playwright 迁移脚本</div></div>
+        <span class="badge bg-err/20 text-err">~0.5d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>删</b>：schema-operations/ 整目录；page-schema/component-registry.ts；page-schema/component-validation.ts；page-schema/validate.ts；page-schema/render.ts (renderPageSchemaToHtml)；tools/node-tools.ts；server/scripts/migrate-pages-to-schema.ts；sf-* 手写 CSS</div>
+        <div><b>验证</b>：tsc 0 error；grep schema-operations 应该 0 hit</div>
+      </div>
+    </details>
+
+    <details class="bg-white border-2 border-ok/40 rounded-xl">
+      <summary class="px-5 py-4 flex items-center gap-3">
+        <span class="step-num bg-ok text-white">β8</span>
+        <div class="flex-1"><div class="font-semibold text-ok">真实测试 + prompt 微调 + 文档</div><div class="text-xs text-ink-3">6 个标准任务回归 + 重写 INTERACTION-SPEC.md</div></div>
+        <span class="badge bg-ok/20 text-ok">~1d</span>
+      </summary>
+      <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
+        <div><b>测</b>：① 设计 SaaS 首页 ② 改标题 ③ 加 footer ④ 换渐变背景 ⑤ 删区块 ⑥ 改按钮圆角；每条对比视觉</div>
+        <div><b>改</b>：根据测试结果调 prompt 措辞 / tool 描述 / 默认模板</div>
+        <div><b>文档</b>：重写 INTERACTION-SPEC.md（HTML 视角）；本文档（canvas-architecture-v2.html）即结案</div>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+<!-- 12 · 风险 -->
+<section id="risks" class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">12</span>
+    <h2 class="h-section">风险与权衡</h2>
+  </div>
+
+  <div class="space-y-3">
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R1 · AI 生成的 HTML 不闭合 / 嵌套错</div>
+      <div class="text-sm text-ink-2 mt-1">
+        <b>对策</b>：DOMParser 容错（即便有错也会出树），serializeDoc 自动补 closing tag。极端情况 tool 返回 invalid_html 让 AI 重试。可加一个轻量验证（用浏览器 native template parser）阻止无脑接受残破 HTML。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R2 · html_replace 不唯一时 AI 反复试</div>
+      <div class="text-sm text-ink-2 mt-1">
+        <b>对策</b>：error.message 明确写"${count} 处匹配，请加更多上下文（前后兄弟节点或 data-sf-id 锚点）"；prompt 教 AI 第一次不唯一就立刻扩 old_html 范围。Cursor 跑了一年验证这模式鲁棒。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R3 · Tailwind CDN 加载失败</div>
+      <div class="text-sm text-ink-2 mt-1">
+        <b>对策</b>：在画布编辑器自身的 dist/ 里 self-host 一份 Tailwind v4，作为备选。iframe 模板里加 <code class="font-mono text-xs bg-surface-2 px-1 rounded">&lt;script onerror=""&gt;</code> 回落。v3 时整体切 precompiled-css 路线，按需打包。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-err rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R4 · 整页重灌 srcDoc 性能</div>
+      <div class="text-sm text-ink-2 mt-1">
+        每次 setPageHtml iframe 全量重渲——拖滑块改 padding 时每帧都重建很卡。
+        <b>对策</b>：① 拖拽期间走 bridge 直接 mutate iframe DOM（不进 store），松手才 commit；② 渐进策略：scoped 切换到 contentDocument.body.innerHTML 替换（保留 head）；③ 远期接 Service Worker 多文件方案（架构文档 §15.8）。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R5 · history 快照体积大</div>
+      <div class="text-sm text-ink-2 mt-1">
+        每个快照是完整 HTML 字符串，大页面可能 100KB+，几十步 undo 累计几 MB。
+        <b>对策</b>：① undoStack 限长 50；② 远期接 diff-match-patch 存 patch 而非全文。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-warn rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R6 · v1 已有数据怎么办</div>
+      <div class="text-sm text-ink-2 mt-1">
+        <b>对策</b>：DB 已经清空，旧 schema 数据已不存在。即便存在，v1 时 page.html 字段一直在维护（renderPageSchemaToHtml 输出），β1 启动后老页面也能 load——只是没有 Tailwind 风格、需要 AI 重新设计。
+      </div>
+    </div>
+    <div class="bg-white border-l-4 border-ink-1 rounded-lg p-5 shadow-sm">
+      <div class="font-semibold">R7 · 失去 schema 后 spec 派生怎么办</div>
+      <div class="text-sm text-ink-2 mt-1">
+        v2 不立刻做 spec 派生（v3 工作）。届时方案是走 DOM 找 data-sf-* 语义属性（见 §10）。
+        架构上等价 v1 的 spec.derive(schema) → spec.derive(html)，实现复杂度甚至更低（HTML walker 比 ComponentNode walker 更直观）。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 · 不在范围 -->
+<section class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-surface-3 text-ink-2 flex items-center justify-center text-sm font-bold">13</span>
+    <h2 class="h-section text-ink-2">不在 v2 范围内</h2>
+  </div>
+  <div class="bg-surface-1 border border-surface-3 rounded-xl p-5 text-sm text-ink-2">
+    <ul class="space-y-1.5">
+      <li>• Spec / PRD 派生（v3，§10 已铺垫）</li>
+      <li>• Material 库 / Token 系统（v3，参考架构文档 v1 的 §6-§8）</li>
+      <li>• MCP server（v3，给 Cursor 用）</li>
+      <li>• Draft 层（接受/拒绝 AI 提议）——v2 完成后单独迭代</li>
+      <li>• Project memory（AI 跨 session 记忆）——v2 完成后单独迭代</li>
+      <li>• Service Worker 多文件渲染（架构文档 v1 §15.8 的远期方案）</li>
+      <li>• 协作编辑 / CRDT</li>
+      <li>• 国际化 / i18n</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 14 · 看板 -->
+<section class="anchor">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">14</span>
+    <h2 class="h-section">进度看板</h2>
+  </div>
+  <div class="bg-white border border-surface-3 rounded-xl p-5">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3">
+          <th class="py-2 pr-4 font-medium w-16">阶段</th>
+          <th class="py-2 pr-4 font-medium">任务</th>
+          <th class="py-2 pr-4 font-medium w-20">工期</th>
+          <th class="py-2 pr-4 font-medium w-24">状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β1</td><td class="py-2 pr-4">Page 模型瘦身</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β2</td><td class="py-2 pr-4">默认模板 + 解析</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β3</td><td class="py-2 pr-4">10 个 HTML 工具</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β4</td><td class="py-2 pr-4">服务端 prompt</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β5</td><td class="py-2 pr-4">LayerTree</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β6</td><td class="py-2 pr-4">右面板</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β7</td><td class="py-2 pr-4">清理残留</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr><td class="py-2 pr-4 font-mono text-xs">β8</td><td class="py-2 pr-4">测试 + 文档</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer class="border-t border-surface-3 mt-20 py-8 bg-white">
+  <div class="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-ink-3">
+    <div>SpecFlow Architecture Plan v2 · 2026-05-22 · HTML-as-truth + AI First</div>
+    <div>Replaces v1 schema-as-truth (canvas-architecture.html)</div>
+  </div>
+</footer>
+
+</body>
+</html>
