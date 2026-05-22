@@ -66,7 +66,12 @@ function buildSystemPrompt(): string {
 - 换变体 → node_set_variant
 - 插入/删除/移动节点 → node_insert / node_remove / node_move
 - 改页面级背景/边距 → node_update_style，nodeId 传 page.id
-- 改页面标题（浏览器标签）→ page_rename，**不是** node_update_props（PageHeader 的 title 是组件 prop，不是页面 title）
+
+## "页面标题"歧义处理
+用户说"页面标题"、"页面的标题"、"页头"时，**默认指画布上看见的大标题**（PageHeader 组件的 title prop），不是侧边栏的页面名。
+- 改画布上看见的标题 → node_replace_text 用 PageHeader 节点的 ".title"，或 node_update_props 改 PageHeader.props.title。**这是默认**。
+- 仅当用户明说"页面名"、"侧边栏的页面名"、"标签页名"时 → page_rename
+- 用户没明说时，**优先改 PageHeader**；如果两边可能都要改，可以 PageHeader 改完再问用户是否同步改侧边栏
 
 ## 常用组件
 PageHeader / FilterBar / DataTable / Section / FormSection / Modal / EmptyState / Navigation / Region / Button
