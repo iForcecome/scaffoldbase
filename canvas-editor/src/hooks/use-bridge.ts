@@ -4,7 +4,6 @@ import { setBridgeSender, consumePendingReveal } from '../bridge/host'
 import { useViewportStore } from '../stores/viewport-store'
 import { useSelectionStore } from '../stores/selection-store'
 import { useToolStore } from '../stores/tool-store'
-import { deriveSpecPath } from '../utils/spec-path'
 
 function handleIframeWheel(data: Record<string, unknown>) {
   const vp = useViewportStore.getState()
@@ -54,24 +53,16 @@ export function useBridge() {
       }
       case 'element-click': {
         const multi = !!(data.shiftKey || data.metaKey || data.ctrlKey)
-        const activePageId = useEditorStore.getState().activePageId
         const sfId = data.sfId as string | null
         const component = data.component as string | null
         const role = data.role as string | null
         const variant = data.variant as string | null
-        const specPath = deriveSpecPath(activePageId, {
-          sfId,
-          component,
-          role,
-          label: data.label as string | null,
-          specPath: data.specPath as string | null,
-        })
         selectElement(data.id as string, data.rect as any, data.label as string, multi, {
           sfId,
           component,
           role,
           variant,
-          specPath,
+          specPath: null,
         })
         if (data.id) {
           sendToIframe({ type: 'get-computed-style', id: data.id })

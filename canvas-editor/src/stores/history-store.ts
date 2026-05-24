@@ -1,13 +1,11 @@
 import { create } from 'zustand'
-import type { PageSchema } from '../page-schema/render'
 
-// History is page-level: every entry is a full snapshot of one page's html
-// + schema, taken just before an operation mutates it. Stack semantics live
-// here; the project store wraps these methods with page snapshot/restore.
+// History is page-level: every entry is a full snapshot of one page's
+// contentHtml taken just before an operation mutates it. Stack semantics live
+// here; the editor store wraps these methods with page snapshot/restore.
 
 export interface PageSnapshot {
-  html: string
-  schema?: PageSchema | null
+  contentHtml: string
 }
 
 interface HistoryState {

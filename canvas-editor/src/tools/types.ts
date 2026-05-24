@@ -4,10 +4,9 @@
 // 1. Tool 是 product 的真正 API：UI 按钮和 AI agent 都通过 tool 调用产生改动
 // 2. Tool 不直接 mutate store，而是返回 effects（声明性结果）；dispatcher 决定是否 apply
 // 3. dry_run 是一等公民：所有 write tool 在 dry_run 下计算 effects 但不落地
-// 4. 失败逐条报告，不让一个错挡住整批（与 v1 严格 reject 不同）
-
-import type { PageSchema } from '../page-schema/types'
-import type { SchemaOperation } from '../schema-operations/types'
+// 4. 失败逐条报告，不让一个错挡住整批
+//
+// v2 Day 0：node_* / schema_op 已删除。html_* effects 将在 β3 / β4 加入。
 
 /** 选区元数据，用于 tool 上下文 */
 export interface SelectionSnapshot {
@@ -37,9 +36,10 @@ export interface ToolResult<TData = unknown> {
  * - dry_run 可以只算 effects 不 apply
  * - Agent / Draft 层可以拦截后审核
  * - 测试 tool 不依赖 store mock
+ *
+ * v2 阶段：html_* effects（页面内容编辑）将在 β4 加入。
  */
 export type ToolEffect =
-  | { kind: 'schema_op'; pageId: string; op: SchemaOperation }
   | { kind: 'page_create'; page: { id: string; title: string } }
   | { kind: 'page_delete'; pageId: string }
   | { kind: 'page_duplicate'; sourcePageId: string; newPageId: string; newTitle: string }
@@ -54,9 +54,9 @@ export type ToolEffect =
 export interface ToolContext {
   /** 当前活动页的 id，可能为空（项目未选页） */
   activePageId: string | null
-  /** 读取某页 schema，返回深拷贝避免 tool 误改 */
-  getPageSchema: (pageId: string) => PageSchema | null
-  /** 列出所有页面的元数据（不含 schema 全文，避免 tool overhead） */
+  /** 读取某页 contentHtml，返回原值（字符串不可变，无需深拷贝） */
+  getPageContentHtml: (pageId: string) => string | null
+  /** 列出所有页面的元数据 */
   listPages: () => Array<{ id: string; title: string }>
   /** 当前选区（如果有） */
   selection: SelectionSnapshot
@@ -65,7 +65,7 @@ export interface ToolContext {
 }
 
 /**
- * Tool 定义。paramsSchema 是 JSON Schema 格式 —— P2 接 Anthropic tool_use 时直接喂给 API。
+ * Tool 定义。paramsSchema 是 JSON Schema 格式 —— 直接喂给 AI provider 的 tool API。
  */
 export interface ToolDef<Params = Record<string, unknown>, Data = unknown> {
   name: string

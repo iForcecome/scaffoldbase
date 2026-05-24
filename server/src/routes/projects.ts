@@ -1,5 +1,4 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { randomUUID } from 'node:crypto'
 import { db } from '../db/client.js'
 import { projects, specs } from '../db/schema.js'
 import { eq, desc } from 'drizzle-orm'
@@ -55,7 +54,6 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
     return deriveMetaFromPrompt(prompt)
   })
 
-
   app.post('/projects', {
     schema: {
       body: {
@@ -66,7 +64,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           description: { type: 'string' },
           qualityPreset: { type: 'string', enum: ['mvp', 'production', 'enterprise'] },
           baasProvider: { type: 'string', enum: ['supabase', 'pocketbase', 'none'] },
-          designTokenId: { type: 'string', format: 'uuid' },
+          sharedHead: { type: 'string' },
           ingestionMaterials: {
             type: 'array',
             maxItems: 20,
@@ -90,7 +88,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       description?: string
       qualityPreset?: 'mvp' | 'production' | 'enterprise'
       baasProvider?: 'supabase' | 'pocketbase' | 'none'
-      designTokenId?: string
+      sharedHead?: string
       ingestionMaterials?: IngestionMaterialInput[]
     }
 
@@ -99,7 +97,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       description: body.description ?? '',
       qualityPreset: body.qualityPreset ?? 'mvp',
       baasProvider: body.baasProvider ?? 'none',
-      designTokenId: body.designTokenId,
+      sharedHead: body.sharedHead ?? '',
     }).returning()
 
     const ingestion = body.ingestionMaterials?.length
@@ -110,16 +108,6 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       projectId: project.id,
       version: 1,
       pages: ingestion?.pages ?? [],
-      rawMaterials: ingestion?.rawMaterials ?? [],
-      normalizedMaterials: ingestion?.normalizedMaterials ?? [],
-      ingestionJobs: ingestion ? [{
-        id: randomUUID(),
-        status: 'completed',
-        plan: ingestion.ingestionPlan,
-        conversionReport: ingestion.conversionReport,
-        createdAt: new Date().toISOString(),
-      }] : [],
-      snapshotHtml: ingestion?.pages[0]?.html,
     })
 
     reply.status(201)
@@ -195,6 +183,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
           qualityPreset: { type: 'string', enum: ['mvp', 'production', 'enterprise'] },
           baasProvider: { type: 'string', enum: ['supabase', 'pocketbase', 'none'] },
           status: { type: 'string', enum: ['draft', 'ready', 'exported', 'synced'] },
+          sharedHead: { type: 'string' },
         },
       },
     },

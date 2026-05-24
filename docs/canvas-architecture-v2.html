@@ -46,7 +46,7 @@ tailwind.config = {
       </div>
       <div>
         <div class="text-sm font-bold">SpecFlow · 架构方案 v2</div>
-        <div class="text-xs text-ink-3">HTML-as-truth · AI First · 2026-05-22</div>
+        <div class="text-xs text-ink-3">HTML-as-truth · AI First · +共享层（sharedHead/Layout）· 2026-05-24</div>
       </div>
     </div>
     <nav class="hidden lg:flex items-center gap-0.5 text-xs">
@@ -85,6 +85,8 @@ tailwind.config = {
     <span class="badge bg-ok/10 text-ok">Tools = product API</span>
     <span class="badge bg-warn/10 text-warn">Cursor-style text matching</span>
     <span class="badge bg-ink-1 text-white">删 ~3000 行 v1 schema 代码</span>
+    <span class="badge bg-accent-100 text-accent-700">+ sharedHead（共享样式/JS）</span>
+    <span class="badge bg-surface-3 text-ink-1">+ Layout 数据模型预留（v2.1 启用）</span>
   </div>
 </section>
 
@@ -167,30 +169,78 @@ tailwind.config = {
   </div>
 
   <div class="bg-white border-2 border-brand-500 rounded-xl p-6 mb-4 shadow-sm">
-    <div class="font-semibold mb-3">Page 数据形状</div>
+    <div class="font-semibold mb-3">三层真相 · Page / Project / Layout</div>
     <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">interface Page {
   id: string
   title: string
-  html: string        <span class="text-ink-3">// 完整 HTML 文档，含 &lt;!DOCTYPE&gt;...&lt;/html&gt;</span>
-                      <span class="text-ink-3">// Tailwind CDN 已注入 &lt;head&gt;</span>
-                      <span class="text-ink-3">// 所有可交互元素带 data-sf-id="sf-xxxxxxxx"</span>
+  layoutId: string | null     <span class="text-ink-3">// v2 始终 null（独立页）；v2.1 启用引用</span>
+  contentHtml: string         <span class="text-ink-3">// 取代原 html 字段</span>
+                              <span class="text-ink-3">// 独立页 = 完整 HTML 文档</span>
+                              <span class="text-ink-3">// 走 layout = 只是"内容区"片段</span>
+                              <span class="text-ink-3">// 所有可交互元素带 data-sf-id="sf-xxxxxxxx"</span>
 }
 
-<span class="text-ink-3">// schema 字段废除。DB jsonb 里旧字段保留但不读不写，下次 migration 删列。</span></pre>
+interface Project {
+  id: string
+  name: string
+  sharedHead: string          <span class="text-ink-3">// v2 启用：注入到每个页面的 &lt;head&gt;</span>
+                              <span class="text-ink-3">// 适合：自定义 CSS / 字体 / 全局 JS / Tailwind config</span>
+}
+
+<span class="text-brand-700">// v2 阶段：数据模型一次到位，layouts 表已建但暂不读写</span>
+interface Layout {
+  id: string                              <span class="text-ink-3">// 'lay-xxx'</span>
+  scope: 'project' | 'team' | 'public'    <span class="text-ink-3">// v2 强制 'project'；v3 解锁</span>
+  projectId: string | null                <span class="text-ink-3">// scope='public' 时为 null</span>
+  parentLayoutId: string | null           <span class="text-ink-3">// v2 强制 null；v3 启用嵌套</span>
+  name: string
+  html: string                            <span class="text-ink-3">// 完整 HTML 文档，含 {{content}} 占位符</span>
+  isDefault: boolean                      <span class="text-ink-3">// 项目内默认</span>
+  createdAt, updatedAt
+}
+
+<span class="text-ink-3">// schema 字段废除。DB pages.html 字段重命名为 content_html。</span></pre>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl p-5 mb-4">
+    <div class="font-semibold mb-3 text-sm">渲染合成（v2 阶段 = 简化路径；v2.1 启用 layout）</div>
+    <pre class="text-xs font-mono leading-6 bg-surface-1 rounded p-4 text-ink-1">function renderPageForIframe(page, layouts, project) {
+  let html = page.contentHtml
+  if (page.layoutId) {                          <span class="text-ink-3">// v2.1 启用</span>
+    const layout = layouts.find(l =&gt; l.id === page.layoutId)
+    html = layout.html.replace('&#123;&#123;content&#125;&#125;', page.contentHtml)
+  }
+  return injectIntoHead(html, project.sharedHead)   <span class="text-ink-3">// v2 启用</span>
+}</pre>
+    <div class="text-xs text-ink-3 mt-3 leading-relaxed">
+      <b class="text-ink-1">关键纪律：</b>用户和 AI <b>永远不操作"合成后的 HTML"</b>，只操作三个真相之一：
+      <code class="font-mono bg-surface-2 px-1 rounded">page.contentHtml</code> /
+      <code class="font-mono bg-surface-2 px-1 rounded">project.sharedHead</code> /
+      <code class="font-mono bg-surface-2 px-1 rounded">layout.html</code>。
+    </div>
   </div>
 
   <div class="grid md:grid-cols-3 gap-3 mb-4 text-xs">
-    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">单一字段</b><br>html 即真相，所见即所得</div>
-    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">零编译</b><br>没有 renderer，srcDoc = injectBridge(html)</div>
+    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">三层真相</b><br>Page 内容 · Project 共享样式 · Layout 共享结构</div>
+    <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">零编译</b><br>没有 renderer，srcDoc = injectBridge(合成 HTML)</div>
     <div class="bg-ok/5 border border-ok/40 rounded p-3 text-ink-1"><b class="text-ok">无解析层</b><br>tool 内部用浏览器 native DOMParser，零依赖</div>
   </div>
 
-  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5 mb-4">
     <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">关键洞察 · "AI 母语"</div>
     <p class="text-sm text-ink-1 leading-relaxed">
       AI 模型训练时见过的最多文本是 <b>HTML + CSS + JS</b>，其次是 <b>各种 framework 代码</b>。
       ComponentNode JSON 这种我们自造的结构，AI 从来没见过、要现学，每个 prompt 都要重申词汇表。
       切到 HTML 等于让 AI 用母语工作——质量、稳定性、token 效率全面提升。
+    </p>
+  </div>
+
+  <div class="bg-accent-50 border border-accent-300 rounded-xl p-5">
+    <div class="text-xs font-semibold text-accent-700 tracking-wider mb-2">为什么需要 sharedHead + Layout</div>
+    <p class="text-sm text-ink-1 leading-relaxed">
+      没有共享层时，"统一所有页面主题色" / "改 Header" 这种诉求需要 AI 逐页 N 次 html_replace，对话啰嗦、易漏、token 贵。
+      <b>sharedHead</b> 解决 A 类（共享 CSS / JS / 字体），<b>Layout</b> 解决 B 类（共享 HTML 结构：header / footer / nav）。
+      v2 阶段数据模型一次到位（不返工）；sharedHead 立即启用；Layout 功能在 v2.1 启用。
     </p>
   </div>
 </section>
@@ -267,6 +317,50 @@ return &#123; ok: true, effects: [&#123; kind: 'html_set', pageId, html: nextHtm
   </div>
   <div class="text-xs text-ink-3 mt-3 leading-relaxed">
     <code class="font-mono bg-surface-2 px-1 rounded">node_*</code> 9 个 tool 整组删除——已被 html_* 取代。
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3 mt-8">v2 新增 · 项目共享样式 tool（2 个）</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-4">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">Tool</th>
+          <th class="py-3 px-4 font-medium">用途</th>
+          <th class="py-3 px-4 font-medium">关键参数</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">project_get_shared_head</td><td class="py-2 px-4 text-xs">读项目 sharedHead 内容</td><td class="py-2 px-4 text-xs font-mono">projectId</td></tr>
+        <tr><td class="py-2 px-4 font-mono text-xs">project_set_shared_head</td><td class="py-2 px-4 text-xs">写项目 sharedHead（一次生效所有页面）</td><td class="py-2 px-4 text-xs font-mono">projectId, content</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-accent-50 border border-accent-200 rounded-lg p-4 text-xs text-ink-1 leading-relaxed mb-2">
+    <b>服务端执行</b>。AI 涉及"全局颜色 / 字体 / 自定义 CSS / 全局 JS / Tailwind config"改动时优先调用这两个 tool，避免逐页 N 次 html_replace。
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3 mt-8">v2.1 预留 · Layout tool（6 个，<span class="badge bg-warn/20 text-warn ml-1">v2 数据模型已就位，功能在 v2.1 启用</span>）</h3>
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-4 opacity-90">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">Tool</th>
+          <th class="py-3 px-4 font-medium">用途</th>
+          <th class="py-3 px-4 font-medium">阶段</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">layout_list</td><td class="py-2 px-4 text-xs">列出项目内 layout</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">layout_get</td><td class="py-2 px-4 text-xs">读 layout html</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">layout_create</td><td class="py-2 px-4 text-xs">新建 layout</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">layout_update</td><td class="py-2 px-4 text-xs">改 layout html（影响所有引用页）</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 font-mono text-xs">layout_delete</td><td class="py-2 px-4 text-xs">删 layout（引用页自动转 layoutId=null）</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+        <tr><td class="py-2 px-4 font-mono text-xs">page_set_layout</td><td class="py-2 px-4 text-xs">绑定/解绑 page 与 layout</td><td class="py-2 px-4 text-xs">v2.1</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-surface-1 border border-surface-3 rounded-lg p-4 text-xs text-ink-1 leading-relaxed">
+    <b>嵌套 layout（parentLayoutId）和跨项目共享（scope='team'/'public'）的功能延后到 v3</b>，与物料库的"嵌套引用 + 权限模型"同框一起做。v2 阶段 schema 字段已存在但应用层强制 <code class="font-mono bg-surface-2 px-1 rounded">scope='project'</code> + <code class="font-mono bg-surface-2 px-1 rounded">parent_layout_id IS NULL</code>。
   </div>
 </section>
 
@@ -766,7 +860,7 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
     </div>
   </div>
 
-  <div class="bg-err/5 border border-err/40 rounded-xl p-5">
+  <div class="bg-err/5 border border-err/40 rounded-xl p-5 mb-6">
     <div class="text-xs font-semibold text-err tracking-wider mb-2">⛔ 跨页纪律</div>
     <ul class="text-sm text-ink-1 space-y-1.5 leading-relaxed">
       <li>• 影响 ≥2 页且模糊的请求 → <b>必须先 request_confirmation</b></li>
@@ -774,6 +868,41 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
       <li>• 跨页改动失败时（某页 html_replace 没匹配上）<b>报告用户并停下</b>，不要悄悄跳过</li>
       <li>• 跨页改动完成后<b>必须给汇总</b>："共改了 N 页 / X 处"——让用户能验证</li>
     </ul>
+  </div>
+
+  <h3 class="text-lg font-semibold mb-3">v2 共享层 · 让"逐页改"成为最后手段</h3>
+  <div class="bg-gradient-to-br from-brand-50 to-accent-50 border border-brand-200 rounded-xl p-5 mb-4">
+    <p class="text-sm text-ink-1 leading-relaxed">
+      上面那种"AI 多轮 + N 次 html_replace"是<b>最差但永远可行</b>的路径。当影响范围是"所有页面的同一个 header / 同一种主题色"时，应该走<b>共享层</b>：改 1 次，N 页自动跟随。
+    </p>
+  </div>
+
+  <div class="bg-white border border-surface-3 rounded-xl overflow-hidden mb-4">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-ink-3 border-b border-surface-3 bg-surface-1">
+          <th class="py-3 px-4 font-medium">用户诉求</th>
+          <th class="py-3 px-4 font-medium">最优路径</th>
+          <th class="py-3 px-4 font-medium">阶段</th>
+        </tr>
+      </thead>
+      <tbody class="text-ink-1">
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">统一所有页面主题色 / 字体</td><td class="py-2 px-4 text-xs font-mono">project_set_shared_head</td><td class="py-2 px-4 text-xs text-ok">v2</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">注入埋点 / Tailwind config</td><td class="py-2 px-4 text-xs font-mono">project_set_shared_head</td><td class="py-2 px-4 text-xs text-ok">v2</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">统一所有页 header / footer</td><td class="py-2 px-4 text-xs font-mono">layout_update</td><td class="py-2 px-4 text-xs text-warn">v2.1</td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 px-4 text-xs">某页内文案 / 颜色调整</td><td class="py-2 px-4 text-xs font-mono">html_replace / html_set_attribute</td><td class="py-2 px-4 text-xs text-ok">v2</td></tr>
+        <tr><td class="py-2 px-4 text-xs">删除/添加跨页共有节点</td><td class="py-2 px-4 text-xs font-mono">layout_update（如有 layout）/ html_* 逐页</td><td class="py-2 px-4 text-xs text-warn">v2.1 / v2</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-brand-50 border border-brand-200 rounded-xl p-5">
+    <div class="text-xs font-semibold text-brand-700 tracking-wider mb-2">AI 决策顺序（写入 prompt）</div>
+    <ol class="text-sm text-ink-1 space-y-1 leading-relaxed list-decimal pl-4">
+      <li>能用 <code class="font-mono bg-white px-1 rounded">project_set_shared_head</code> 解决？→ 用它（v2 已可用）</li>
+      <li>否则能用 <code class="font-mono bg-white px-1 rounded">layout_update</code> 解决？→ 用它（v2.1 起）</li>
+      <li>否则 = 真实的跨页 N 次 html_* 操作 → 先 <code class="font-mono bg-white px-1 rounded">request_confirmation</code> 再逐页改</li>
+    </ol>
   </div>
 </section>
 
@@ -883,7 +1012,7 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
   </div>
 
   <div class="bg-gradient-to-r from-brand-50 to-accent-50 border border-brand-200 rounded-xl p-4 mb-6 text-sm text-ink-1">
-    每步独立 commit。后续步骤依赖前一步通过 tsc + UI smoke test。预计总工时 <b>5-6 天</b>。
+    每步独立 commit。后续步骤依赖前一步通过 tsc + UI smoke test。预计总工时 <b>5.5-7 天</b>（含 sharedHead / Layout 数据模型一次到位）。
   </div>
 
   <div class="space-y-3">
@@ -891,27 +1020,38 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
     <details class="bg-white border border-surface-3 rounded-xl">
       <summary class="px-5 py-4 flex items-center gap-3">
         <span class="step-num bg-brand-600 text-white">β1</span>
-        <div class="flex-1"><div class="font-semibold">Page 模型瘦身</div><div class="text-xs text-ink-3">删除 Page.schema 字段；UI 流照常跑</div></div>
-        <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
+        <div class="flex-1"><div class="font-semibold">数据模型一次到位</div><div class="text-xs text-ink-3">删 schema · 拆 contentHtml · 加 sharedHead · 建 layouts 表</div></div>
+        <span class="badge bg-brand-100 text-brand-700">~1d</span>
       </summary>
       <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
-        <div><b>改</b>：editor-store.Page、services/api.ts.Page、server/routes/pages.ts.Page、ingestion.ts、db/schema.ts pages 类型注释</div>
-        <div><b>不动</b>：DB 里旧 schema 字段保留（不读不写，下次 migration 删列）</div>
-        <div><b>验证</b>：tsc 0 error；建项目、切页、改标题、保存都正常（虽然样式仍是 v1 sf-* 样式）</div>
+        <div><b>DB 迁移</b>：
+          <ul class="pl-4 space-y-0.5 mt-1">
+            <li>① <code class="font-mono bg-surface-2 px-1 rounded">pages.html → pages.content_html</code>（重命名）</li>
+            <li>② <code class="font-mono bg-surface-2 px-1 rounded">pages.layout_id TEXT NULL</code>（新增，v2 阶段始终 null）</li>
+            <li>③ 删除 <code class="font-mono bg-surface-2 px-1 rounded">pages.schema</code> 字段</li>
+            <li>④ <code class="font-mono bg-surface-2 px-1 rounded">projects.shared_head TEXT NOT NULL DEFAULT ''</code>（新增）</li>
+            <li>⑤ 新表 <code class="font-mono bg-surface-2 px-1 rounded">layouts</code>（id, scope, project_id, parent_layout_id, name, html, is_default, ts）</li>
+          </ul>
+        </div>
+        <div><b>类型/Store</b>：editor-store.Page 加 layoutId/contentHtml；新 Project 类型加 sharedHead；server/routes/pages.ts、services/api.ts 对齐</div>
+        <div><b>应用层约束</b>：写入 layouts 时强制 <code class="font-mono bg-surface-2 px-1 rounded">scope='project'</code> + <code class="font-mono bg-surface-2 px-1 rounded">parent_layout_id IS NULL</code></div>
+        <div><b>不动</b>：DB 里没有遗留数据需要迁移（DB 已清空）</div>
+        <div><b>验证</b>：tsc 0 error；建项目、切页、改标题、保存都正常；DB 里能看到新字段；旧的渲染流照常工作</div>
       </div>
     </details>
 
     <details class="bg-white border border-surface-3 rounded-xl">
       <summary class="px-5 py-4 flex items-center gap-3">
         <span class="step-num bg-brand-600 text-white">β2</span>
-        <div class="flex-1"><div class="font-semibold">默认模板 + HTML 解析基础设施</div><div class="text-xs text-ink-3">html/ 目录、DOMParser 封装、injectBridge 直传 html</div></div>
+        <div class="flex-1"><div class="font-semibold">默认模板 + HTML 解析 + sharedHead 注入</div><div class="text-xs text-ink-3">html/ 目录、DOMParser 封装、renderPageForIframe</div></div>
         <span class="badge bg-brand-100 text-brand-700">~1d</span>
       </summary>
       <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
-        <div><b>新增</b>：html/template.ts (createDefaultPageHtml), html/id.ts (genId + assignMissingIds), html/parse.ts (parsePage/parseFragment/serializeDoc), html/traverse.ts (findById/findByQuery/walkAll)</div>
-        <div><b>改</b>：editor-store.addPage 用模板；ContentIFrame.tsx srcDoc = injectBridge(page.html)</div>
+        <div><b>新增</b>：html/template.ts (createDefaultPageHtml), html/id.ts (genId + assignMissingIds), html/parse.ts (parsePage/parseFragment/serializeDoc), html/traverse.ts (findById/findByQuery/walkAll), html/inject.ts (injectIntoHead)</div>
+        <div><b>新增渲染函数</b>：<code class="font-mono bg-surface-2 px-1 rounded">renderPageForIframe(page, layouts, project)</code>，v2 阶段 layouts 传空数组（layoutId 始终 null），只走 sharedHead 注入分支</div>
+        <div><b>改</b>：editor-store.addPage 用模板；ContentIFrame.tsx srcDoc = injectBridge(renderPageForIframe(...))</div>
         <div><b>删</b>：renderPageSchemaToHtml 调用链（保留函数本身到 β7 再删）</div>
-        <div><b>验证</b>：新建项目 → 画布是 Tailwind 风格的清爽页面；Network 看到 Tailwind CDN 加载</div>
+        <div><b>验证</b>：新建项目 → 画布是 Tailwind 风格的清爽页面；改 project.sharedHead 加一段 &lt;style&gt; → 所有页面立即生效</div>
       </div>
     </details>
 
@@ -931,12 +1071,14 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
     <details class="bg-white border border-surface-3 rounded-xl">
       <summary class="px-5 py-4 flex items-center gap-3">
         <span class="step-num bg-brand-600 text-white">β4</span>
-        <div class="flex-1"><div class="font-semibold">服务端 tool schema + system prompt 重写</div><div class="text-xs text-ink-3">agent-tools-schema.ts 切到 html_*；新 prompt 教 Tailwind</div></div>
+        <div class="flex-1"><div class="font-semibold">服务端 tool schema + system prompt 重写</div><div class="text-xs text-ink-3">agent-tools-schema.ts 切到 html_* + project_shared_head_*；新 prompt 教 Tailwind + 共享层决策</div></div>
         <span class="badge bg-brand-100 text-brand-700">~0.5d</span>
       </summary>
       <div class="px-5 pb-5 pt-1 text-xs text-ink-2 border-t border-surface-2 space-y-1">
-        <div><b>改</b>：server/services/agent-tools-schema.ts 删 node_* 加 html_*；agent.ts 系统 prompt 重写</div>
-        <div><b>验证</b>：curl 发"设计个 SaaS 首页"→ 服务端日志看到 AI 调 html_read + html_replace，浏览器画布出现 hero/卡片/渐变</div>
+        <div><b>改</b>：server/services/agent-tools-schema.ts 删 node_* 加 html_* 和 2 个 project_shared_head_*；agent.ts 系统 prompt 重写</div>
+        <div><b>实现</b>：project_get_shared_head / project_set_shared_head 路由（服务端工具，直接读写 DB projects.shared_head）</div>
+        <div><b>Prompt 加段</b>：§08.6 末尾 "AI 决策顺序" 那段写入 system prompt（优先 sharedHead → 否则 html_*）</div>
+        <div><b>验证</b>：① "设计个 SaaS 首页"→ 看到 html_read + html_replace；② "给整个项目加 Inter 字体" → 应该调 project_set_shared_head 一次完成</div>
       </div>
     </details>
 
@@ -1054,13 +1196,23 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
     <span class="w-8 h-8 rounded-lg bg-surface-3 text-ink-2 flex items-center justify-center text-sm font-bold">13</span>
     <h2 class="h-section text-ink-2">不在 v2 范围内</h2>
   </div>
-  <div class="bg-surface-1 border border-surface-3 rounded-xl p-5 text-sm text-ink-2">
+  <div class="bg-surface-1 border border-surface-3 rounded-xl p-5 text-sm text-ink-2 mb-4">
+    <div class="text-xs font-semibold text-warn tracking-wider mb-2">v2.1（紧接着 v2 单独迭代，预估 2-3 天）</div>
     <ul class="space-y-1.5">
-      <li>• Spec / PRD 派生（v3，§10 已铺垫）</li>
-      <li>• Material 库 / Token 系统（v3，参考架构文档 v1 的 §6-§8）</li>
-      <li>• MCP server（v3，给 Cursor 用）</li>
-      <li>• Draft 层（接受/拒绝 AI 提议）——v2 完成后单独迭代</li>
-      <li>• Project memory（AI 跨 session 记忆）——v2 完成后单独迭代</li>
+      <li>• Layout 功能启用（layout_* tool · 编辑 UI · LayerTree 显示 · "提取选区为 layout" 工作流 · AI prompt 教改 layout vs 改 page）</li>
+      <li>• 仅项目级（scope='project'）+ 单层（parentLayoutId=null）+ 单 slot（<code class="font-mono bg-white px-1 rounded">&#123;&#123;content&#125;&#125;</code>）</li>
+      <li>• 自动建项目默认 layout</li>
+    </ul>
+  </div>
+  <div class="bg-surface-1 border border-surface-3 rounded-xl p-5 text-sm text-ink-2">
+    <div class="text-xs font-semibold text-ink-2 tracking-wider mb-2">v3（远期，跟物料库一起做）</div>
+    <ul class="space-y-1.5">
+      <li>• Layout 嵌套（解锁 parentLayoutId）+ 跨项目共享（解锁 scope='team'/'public'）</li>
+      <li>• Spec / PRD 派生（§10 已铺垫）</li>
+      <li>• Material 库 / Token 系统（参考架构文档 v1 的 §6-§8）</li>
+      <li>• MCP server（给 Cursor 用）</li>
+      <li>• Draft 层（接受/拒绝 AI 提议）</li>
+      <li>• Project memory（AI 跨 session 记忆）</li>
       <li>• Service Worker 多文件渲染（架构文档 v1 §15.8 的远期方案）</li>
       <li>• 协作编辑 / CRDT</li>
       <li>• 国际化 / i18n</li>
@@ -1085,14 +1237,15 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
         </tr>
       </thead>
       <tbody>
-        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β1</td><td class="py-2 pr-4">Page 模型瘦身</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
-        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β2</td><td class="py-2 pr-4">默认模板 + 解析</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β1</td><td class="py-2 pr-4">数据模型一次到位（layouts 表 + sharedHead + contentHtml）</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β2</td><td class="py-2 pr-4">默认模板 + 解析 + sharedHead 注入</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
         <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β3</td><td class="py-2 pr-4">10 个 HTML 工具</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
-        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β4</td><td class="py-2 pr-4">服务端 prompt</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β4</td><td class="py-2 pr-4">服务端 prompt + 2 个 project_shared_head_*</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
         <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β5</td><td class="py-2 pr-4">LayerTree</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
         <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β6</td><td class="py-2 pr-4">右面板</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
         <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β7</td><td class="py-2 pr-4">清理残留</td><td class="py-2 pr-4 text-xs">0.5d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
-        <tr><td class="py-2 pr-4 font-mono text-xs">β8</td><td class="py-2 pr-4">测试 + 文档</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="border-b border-surface-2"><td class="py-2 pr-4 font-mono text-xs">β8</td><td class="py-2 pr-4">测试 + 文档</td><td class="py-2 pr-4 text-xs">1d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">未开始</span></td></tr>
+        <tr class="bg-warn/5"><td class="py-2 pr-4 font-mono text-xs text-warn">v2.1</td><td class="py-2 pr-4 text-ink-2">Layout 功能启用（layout_* tool + UI + prompt）</td><td class="py-2 pr-4 text-xs">2-3d</td><td class="py-2 pr-4"><span class="badge bg-surface-3 text-ink-2">v2 完工后</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -1102,7 +1255,7 @@ project_extract_to_fragment(pageId, nodeId) → 抽出为可引用 fragment（v3
 
 <footer class="border-t border-surface-3 mt-20 py-8 bg-white">
   <div class="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-ink-3">
-    <div>SpecFlow Architecture Plan v2 · 2026-05-22 · HTML-as-truth + AI First</div>
+    <div>SpecFlow Architecture Plan v2 · 2026-05-24 · HTML-as-truth + AI First + 共享层</div>
     <div>Replaces v1 schema-as-truth (canvas-architecture.html)</div>
   </div>
 </footer>

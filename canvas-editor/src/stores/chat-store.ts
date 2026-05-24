@@ -148,7 +148,6 @@ export const useChatStore = create<ChatState & ChatActions>()((set, get) => ({
           {
             message: text,
             pageId: page.id,
-            pageSchema: page.schema ?? undefined,
             selectedNode: selectedElement
               ? {
                   id: selectedId,

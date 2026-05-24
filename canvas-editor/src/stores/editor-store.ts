@@ -1,10 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { api } from '../services/api'
-import { clonePageSchema, createDefaultPageSchema, renderPageSchemaToHtml, type PageSchema } from '../page-schema/render'
-import { validatePageSchema } from '../page-schema/validate'
-import { applySchemaOperations as applySchemaOperationList } from '../schema-operations/apply-schema-operation'
-import type { SchemaOperation } from '../schema-operations/types'
 import { useViewportStore } from './viewport-store'
 import { useSelectionStore } from './selection-store'
 import { useHistoryStore, type PageSnapshot } from './history-store'
@@ -16,14 +12,14 @@ export type { Tool } from './tool-store'
 export interface Page {
   id: string
   title: string
-  html: string
-  schema?: PageSchema | null
-  origin?: unknown
+  layoutId: string | null
+  contentHtml: string
 }
 
 interface EditorState {
   projectId: string | null
   projectName: string
+  sharedHead: string
   pages: Page[]
   activePageId: string
   saving: boolean
@@ -31,10 +27,15 @@ interface EditorState {
 }
 
 interface EditorActions {
-  loadProject: (projectId: string, name: string, pages: Page[]) => void
+  loadProject: (input: {
+    projectId: string
+    name: string
+    pages: Page[]
+    sharedHead?: string
+  }) => void
   setActivePage: (id: string) => void
-  updatePageHTML: (pageId: string, html: string) => void
-  applySchemaOperations: (pageId: string, operations: SchemaOperation[]) => void
+  updatePageContentHtml: (pageId: string, contentHtml: string) => void
+  setSharedHead: (sharedHead: string) => void
   pushUndo: () => void
   undo: () => void
   redo: () => void
@@ -58,40 +59,18 @@ export {
   requestFromBridge,
 } from '../bridge/host'
 
-function createGeneratedPage(id: string, title: string): Page {
-  const schema = createDefaultPageSchema(id, title)
-  return {
-    id,
-    title,
-    html: renderPageSchemaToHtml(schema),
-    schema,
-  }
-}
-
-function normalizeLoadedPages(pages: Page[]): Page[] {
-  const usedIds = new Set<string>()
-  return pages.map((page, index) => {
-    const normalizedPage: Page = {
-      ...page,
-      schema: page.schema ? normalizePageSchemaIds(page.schema, index) : null,
-    }
-    let id = normalizeId(normalizedPage.id, `page-${index + 1}`)
-    let suffix = 2
-    while (usedIds.has(id)) {
-      id = `${normalizeId(normalizedPage.id, `page-${index + 1}`)}-${suffix}`
-      suffix += 1
-    }
-    usedIds.add(id)
-    if (id !== normalizedPage.id) {
-      normalizedPage.id = id
-      if (normalizedPage.schema) normalizedPage.schema.page.id = id
-    }
-    if (normalizedPage.schema) {
-      normalizedPage.html = renderPageSchemaToHtml(normalizedPage.schema)
-    }
-    return normalizedPage
-  })
-}
+const DEFAULT_PAGE_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <main class="min-h-screen p-8">
+    <h1 class="text-3xl font-bold">新页面</h1>
+  </main>
+</body>
+</html>`
 
 function hashString(value: string): string {
   let hash = 0
@@ -113,50 +92,54 @@ function normalizeId(value: unknown, fallback: string): string {
   return `${cleaned || fallback}-${hashString(raw || fallback)}`
 }
 
-function normalizeComponentNodeIds(nodes: PageSchema['page']['sections'], pageId: string): PageSchema['page']['sections'] {
-  return nodes.map((node, index) => {
-    const id = normalizeId(node.id, `${pageId}.node.${index + 1}`)
-    return {
-      ...node,
-      id,
-      children: node.children ? normalizeComponentNodeIds(node.children, id) : undefined,
+function createGeneratedPage(id: string, title: string): Page {
+  return { id, title, layoutId: null, contentHtml: DEFAULT_PAGE_HTML }
+}
+
+function normalizeLoadedPages(pages: Page[]): Page[] {
+  const usedIds = new Set<string>()
+  return pages.map((page, index) => {
+    const normalizedPage: Page = {
+      id: page.id,
+      title: page.title ?? `页面 ${index + 1}`,
+      layoutId: page.layoutId ?? null,
+      contentHtml: page.contentHtml ?? DEFAULT_PAGE_HTML,
     }
+    let id = normalizeId(normalizedPage.id, `page-${index + 1}`)
+    let suffix = 2
+    while (usedIds.has(id)) {
+      id = `${normalizeId(normalizedPage.id, `page-${index + 1}`)}-${suffix}`
+      suffix += 1
+    }
+    usedIds.add(id)
+    normalizedPage.id = id
+    return normalizedPage
   })
 }
 
-function normalizePageSchemaIds(schema: PageSchema, index: number): PageSchema {
-  const next = JSON.parse(JSON.stringify(schema)) as PageSchema
-  const pageId = normalizeId(next.page.id, `page-${index + 1}`)
-  next.page.id = pageId
-  next.page.sections = normalizeComponentNodeIds(next.page.sections, pageId)
-  return next
-}
-
 function createPageSnapshot(page: Page): PageSnapshot {
-  return {
-    html: page.html,
-    schema: page.schema ? JSON.parse(JSON.stringify(page.schema)) as PageSchema : page.schema ?? null,
-  }
+  return { contentHtml: page.contentHtml }
 }
 
 function restorePageSnapshot(page: Page, snapshot: PageSnapshot) {
-  page.html = snapshot.html
-  page.schema = snapshot.schema ? JSON.parse(JSON.stringify(snapshot.schema)) as PageSchema : snapshot.schema ?? null
+  page.contentHtml = snapshot.contentHtml
 }
 
 export const useEditorStore = create<EditorState & EditorActions>()(
   immer((set, get) => ({
     projectId: null,
     projectName: '',
+    sharedHead: '',
     pages: [],
     activePageId: '',
     saving: false,
     dirtyPageIds: [],
 
-    loadProject: (projectId, name, pages) => {
+    loadProject: ({ projectId, name, pages, sharedHead }) => {
       set((s) => {
         s.projectId = projectId
         s.projectName = name
+        s.sharedHead = sharedHead ?? ''
         if (pages.length === 0) {
           const defaultPage = createGeneratedPage('page-' + Date.now(), '首页')
           s.pages = [defaultPage]
@@ -179,36 +162,19 @@ export const useEditorStore = create<EditorState & EditorActions>()(
       useViewportStore.getState().resetViewport()
     },
 
-    updatePageHTML: (pageId, html) => set((s) => {
+    updatePageContentHtml: (pageId, contentHtml) => set((s) => {
       const page = s.pages.find(p => p.id === pageId)
       if (page) {
-        page.html = html
+        page.contentHtml = contentHtml
         if (!s.dirtyPageIds.includes(pageId)) {
           s.dirtyPageIds.push(pageId)
         }
       }
     }),
 
-    applySchemaOperations: (pageId, operations) => {
-      let snapshot: PageSnapshot | null = null
-      set((s) => {
-        const page = s.pages.find(p => p.id === pageId)
-        if (!page || !page.schema || operations.length === 0) return
-        snapshot = createPageSnapshot(page)
-
-        const nextSchema = applySchemaOperationList(page.schema, operations)
-        const validation = validatePageSchema(nextSchema)
-        if (!validation.ok) {
-          throw new Error(`Invalid page schema after operation: ${validation.errors.join('; ')}`)
-        }
-        page.schema = nextSchema
-        page.html = renderPageSchemaToHtml(nextSchema)
-        if (!s.dirtyPageIds.includes(pageId)) {
-          s.dirtyPageIds.push(pageId)
-        }
-      })
-      if (snapshot) useHistoryStore.getState().pushUndo(snapshot)
-    },
+    setSharedHead: (sharedHead) => set((s) => {
+      s.sharedHead = sharedHead
+    }),
 
     pushUndo: () => {
       const page = get().pages.find(p => p.id === get().activePageId)
@@ -281,15 +247,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         if (!source) return
         const newId = 'page-' + Date.now()
         const idx = s.pages.findIndex(p => p.id === id)
-        const schema = source.schema ? clonePageSchema(source.schema, {
-          id: newId,
-          title: source.title + ' 副本',
-        }) : null
         s.pages.splice(idx + 1, 0, {
           id: newId,
           title: source.title + ' 副本',
-          html: schema ? renderPageSchemaToHtml(schema) : source.html,
-          schema,
+          layoutId: source.layoutId,
+          contentHtml: source.contentHtml,
         })
         s.activePageId = newId
         if (!s.dirtyPageIds.includes(newId)) s.dirtyPageIds.push(newId)
@@ -324,12 +286,10 @@ export const useEditorStore = create<EditorState & EditorActions>()(
         for (const pageId of state.dirtyPageIds) {
           const page = state.pages.find(p => p.id === pageId)
           if (page) {
-            const html = page.schema ? renderPageSchemaToHtml(page.schema) : page.html
-            if (html !== page.html) page.html = html
             await api.pages.update(state.projectId, pageId, {
-              html,
+              contentHtml: page.contentHtml,
               title: page.title,
-              schema: page.schema ?? undefined,
+              layoutId: page.layoutId,
             })
           }
         }
@@ -340,4 +300,3 @@ export const useEditorStore = create<EditorState & EditorActions>()(
     },
   }))
 )
-

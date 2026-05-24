@@ -1,23 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { randomUUID } from 'node:crypto'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { specs } from '../db/schema.js'
+import { specs, type PageData } from '../db/schema.js'
 import { ingestMaterials, type IngestionMaterialInput } from '../services/ingestion.js'
-
-type StoredSpecExtras = {
-  rawMaterials?: unknown[]
-  normalizedMaterials?: unknown[]
-  ingestionJobs?: unknown[]
-}
-
-type StoredPage = {
-  id: string
-  title: string
-  html: string
-  schema?: unknown
-  origin?: unknown
-}
 
 export const ingestionRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:id/ingest', {
@@ -70,37 +55,16 @@ export const ingestionRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const ingestion = ingestMaterials({ prompt: body.prompt, materials: body.materials })
-    const extras = spec as typeof spec & StoredSpecExtras
-    const pages: StoredPage[] = body.appendPages === false
-      ? ((spec.pages ?? []) as StoredPage[])
-      : [...((spec.pages ?? []) as StoredPage[]), ...ingestion.pages]
-
-    const job = {
-      id: randomUUID(),
-      status: 'completed',
-      plan: ingestion.ingestionPlan,
-      conversionReport: ingestion.conversionReport,
-      createdAt: new Date().toISOString(),
-    }
+    const existingPages = (spec.pages ?? []) as PageData[]
+    const pages: PageData[] = body.appendPages === false
+      ? existingPages
+      : [...existingPages, ...ingestion.pages]
 
     const [updated] = await db.update(specs)
-      .set({
-        pages,
-        rawMaterials: [...(extras.rawMaterials ?? []), ...ingestion.rawMaterials],
-        normalizedMaterials: [...(extras.normalizedMaterials ?? []), ...ingestion.normalizedMaterials],
-        ingestionJobs: [...(extras.ingestionJobs ?? []), job],
-        snapshotHtml: pages[0] && typeof pages[0] === 'object' && 'html' in pages[0] ? String(pages[0].html) : spec.snapshotHtml,
-      })
+      .set({ pages })
       .where(eq(specs.id, spec.id))
       .returning()
 
-    return {
-      pages: updated.pages,
-      rawMaterials: updated.rawMaterials,
-      normalizedMaterials: updated.normalizedMaterials,
-      ingestionJobs: updated.ingestionJobs,
-      ingestionPlan: ingestion.ingestionPlan,
-      conversionReport: ingestion.conversionReport,
-    }
+    return { pages: updated.pages }
   })
 }

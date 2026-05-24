@@ -2,7 +2,6 @@
 // 顺序无关，但保持 page → node → misc 的语义分组方便查阅。
 
 import './page-tools'
-import './node-tools'
 import './misc-tools'
 
 export { dispatchTools } from './dispatcher'

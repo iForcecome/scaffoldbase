@@ -1,6 +1,5 @@
 import { registerTool } from './registry'
 import type { ToolDef, ToolResult } from './types'
-import type { PageSchema } from '../page-schema/types'
 
 const pageList: ToolDef<Record<string, never>, Array<{ id: string; title: string }>> = {
   name: 'page_list',
@@ -13,9 +12,9 @@ const pageList: ToolDef<Record<string, never>, Array<{ id: string; title: string
   }),
 }
 
-const pageRead: ToolDef<{ pageId: string }, PageSchema | null> = {
+const pageRead: ToolDef<{ pageId: string }, { contentHtml: string }> = {
   name: 'page_read',
-  description: '读取指定页面的完整 PageSchema。返回深拷贝，tool 改动不会影响真 schema。',
+  description: '读取指定页面的 contentHtml（v2：完整 HTML 文档字符串或片段）。',
   paramsSchema: {
     type: 'object',
     required: ['pageId'],
@@ -25,14 +24,14 @@ const pageRead: ToolDef<{ pageId: string }, PageSchema | null> = {
     additionalProperties: false,
   },
   execute: ({ pageId }, ctx) => {
-    const schema = ctx.getPageSchema(pageId)
-    if (!schema) {
+    const html = ctx.getPageContentHtml(pageId)
+    if (html === null) {
       return {
         ok: false,
         error: { code: 'page_not_found', message: `页面 ${pageId} 不存在` },
       }
     }
-    return { ok: true, data: schema, summary: `read page ${pageId}` }
+    return { ok: true, data: { contentHtml: html }, summary: `read page ${pageId}` }
   },
 }
 

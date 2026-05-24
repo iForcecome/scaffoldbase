@@ -36,7 +36,12 @@ export default function EditorPage() {
         const pages = await api.pages.list(projectId!)
         if (cancelled) return
 
-        loadProject(projectId!, project.name, pages)
+        loadProject({
+          projectId: projectId!,
+          name: project.name,
+          pages,
+          sharedHead: project.sharedHead ?? '',
+        })
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : '加载项目失败')

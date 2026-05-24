@@ -4,7 +4,6 @@ import { useViewportStore } from '../../stores/viewport-store'
 import { useSelectionStore } from '../../stores/selection-store'
 import { useToolStore } from '../../stores/tool-store'
 import { injectBridge } from '../../utils/inject-bridge'
-import { deriveSpecPath } from '../../utils/spec-path'
 
 interface ContentIFrameProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
@@ -99,8 +98,9 @@ const TEXT_TAGS = new Set(['h1','h2','h3','h4','h5','h6','p','span','a','button'
 export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
   const pageHtml = useEditorStore(s => {
     const page = s.pages.find(p => p.id === s.activePageId)
-    return page?.html || ''
+    return page?.contentHtml || ''
   })
+  const sharedHead = useEditorStore(s => s.sharedHead)
   const activePageId = useEditorStore(s => s.activePageId)
   const iframeHeight = useViewportStore(s => s.iframeHeight)
   const setIframeHeight = useViewportStore(s => s.setIframeHeight)
@@ -118,9 +118,16 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
     prevPageIdRef.current = activePageId
 
     if (pageChanged || !consumeSuppressReload()) {
-      setSrcDoc(pageHtml ? injectBridge(pageHtml) : '')
+      if (!pageHtml) {
+        setSrcDoc('')
+      } else {
+        const composed = sharedHead
+          ? pageHtml.replace('</head>', sharedHead + '</head>')
+          : pageHtml
+        setSrcDoc(injectBridge(composed))
+      }
     }
-  }, [pageHtml, activePageId])
+  }, [pageHtml, sharedHead, activePageId])
 
   const handleLoad = () => {
     const iframe = iframeRef.current
@@ -159,13 +166,7 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
         component: target.getAttribute('data-sf-component') || inferred.component,
         role: target.getAttribute('data-sf-role') || inferred.role,
         variant: target.getAttribute('data-sf-variant'),
-        specPath: deriveSpecPath(activePageId, {
-          sfId,
-          component: target.getAttribute('data-sf-component') || inferred.component,
-          role: target.getAttribute('data-sf-role') || inferred.role,
-          label: target.getAttribute('data-sf-label') || inferred.label || inferLabelFromEl(target),
-          specPath: target.getAttribute('data-sf-spec'),
-        }),
+        specPath: null,
       }
     } catch {
       return null

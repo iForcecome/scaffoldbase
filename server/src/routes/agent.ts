@@ -8,7 +8,6 @@ function sendSSE(reply: { raw: { write: (data: string) => void } }, type: string
 type AgentBody = {
   message: string
   pageId?: string
-  pageSchema?: unknown
   selectedNode?: unknown
 }
 
@@ -32,7 +31,6 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           message: { type: 'string', minLength: 1 },
           pageId: { type: 'string' },
-          pageSchema: { type: 'object', additionalProperties: true },
           selectedNode: { type: 'object', additionalProperties: true },
         },
       },
@@ -65,7 +63,6 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
         userMessage: body.message,
         pageContext: {
           activePageId: body.pageId,
-          pageSchema: body.pageSchema,
           selectedNode: body.selectedNode,
         },
       },

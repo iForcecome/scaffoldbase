@@ -6,7 +6,9 @@
 // AI provider。最简方案是镜像。
 //
 // 同步纪律：改 canvas-editor/src/tools/*.ts 的 paramsSchema 时**同步改这里**。
-// P4 之后可以考虑放进 workspaces/tools-schemas 共享包，那时不再需要镜像。
+//
+// v2 Day 0 状态：node_* 工具组已删除（v1 schema 残留）。html_* 工具将在 β3 / β4
+// 阶段加入。当前 server 给 AI 的工具集只剩 page_* + selection_* + history_*。
 
 export interface OpenAIToolDef {
   type: 'function'
@@ -17,8 +19,6 @@ export interface OpenAIToolDef {
   }
 }
 
-const POSITION_ENUM = ['before', 'after', 'inside:start', 'inside:end']
-
 const tools: Array<{ name: string; description: string; parameters: object }> = [
   // ─── page ───────────────────────────────────────────────────
   {
@@ -28,7 +28,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
   },
   {
     name: 'page_read',
-    description: '读取指定页面的完整 PageSchema。返回深拷贝。',
+    description: '读取指定页面的 contentHtml（v2：完整 HTML 文档或内容片段）。',
     parameters: {
       type: 'object',
       required: ['pageId'],
@@ -38,7 +38,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
   },
   {
     name: 'page_create',
-    description: '创建一个新页面（含默认 schema）。返回新建页面的 id。',
+    description: '创建一个新页面（默认 HTML 模板）。返回新建页面的 id。',
     parameters: {
       type: 'object',
       properties: { title: { type: 'string', maxLength: 80 } },
@@ -57,7 +57,7 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
   },
   {
     name: 'page_duplicate',
-    description: '复制指定页面（含完整 schema），自动切到副本。',
+    description: '复制指定页面的 contentHtml，自动切到副本。',
     parameters: {
       type: 'object',
       required: ['pageId'],
@@ -85,129 +85,6 @@ const tools: Array<{ name: string; description: string; parameters: object }> = 
       type: 'object',
       required: ['pageId'],
       properties: { pageId: { type: 'string' } },
-      additionalProperties: false,
-    },
-  },
-  // ─── node ───────────────────────────────────────────────────
-  {
-    name: 'node_read',
-    description: '读取页面中某个节点的完整定义（含 children）。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId'],
-      properties: { pageId: { type: 'string' }, nodeId: { type: 'string' } },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_find',
-    description: '按 component / role / 文本 / label 模糊查找节点。多条件 AND。',
-    parameters: {
-      type: 'object',
-      required: ['pageId'],
-      properties: {
-        pageId: { type: 'string' },
-        component: { type: 'string' },
-        role: { type: 'string' },
-        textContains: { type: 'string' },
-        labelContains: { type: 'string' },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_insert',
-    description: '在 target 节点周围插入一个 ComponentNode。target 可为 page.id（插到 sections 根）。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'target', 'position', 'node'],
-      properties: {
-        pageId: { type: 'string' },
-        target: { type: 'string' },
-        position: { type: 'string', enum: POSITION_ENUM },
-        node: { type: 'object' },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_remove',
-    description: '从页面中删除节点（连带 children）。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId'],
-      properties: { pageId: { type: 'string' }, nodeId: { type: 'string' } },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_move',
-    description: '把节点移动到 reference 节点周围。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId', 'referenceId', 'position'],
-      properties: {
-        pageId: { type: 'string' },
-        nodeId: { type: 'string' },
-        referenceId: { type: 'string' },
-        position: { type: 'string', enum: POSITION_ENUM },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_update_props',
-    description: '合并更新节点的 props 字段（浅合并）。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId', 'props'],
-      properties: {
-        pageId: { type: 'string' },
-        nodeId: { type: 'string' },
-        props: { type: 'object' },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_update_style',
-    description: '合并更新节点的内联样式（camelCase 键，空字符串表示删除）。nodeId 等于 page.id 时改页面级 style。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId', 'styles'],
-      properties: {
-        pageId: { type: 'string' },
-        nodeId: { type: 'string' },
-        styles: { type: 'object', additionalProperties: { type: 'string' } },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_set_variant',
-    description: '设置节点的 variant（如 "compact"、"spacious"）。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'nodeId', 'variant'],
-      properties: {
-        pageId: { type: 'string' },
-        nodeId: { type: 'string' },
-        variant: { type: 'string', maxLength: 80 },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'node_replace_text',
-    description: '替换节点的文本内容。targetId 可为子字段如 "nodeId.title"。',
-    parameters: {
-      type: 'object',
-      required: ['pageId', 'targetId', 'text'],
-      properties: {
-        pageId: { type: 'string' },
-        targetId: { type: 'string' },
-        text: { type: 'string', maxLength: 2000 },
-      },
       additionalProperties: false,
     },
   },

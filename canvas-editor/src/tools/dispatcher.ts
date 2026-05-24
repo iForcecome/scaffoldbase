@@ -20,10 +20,6 @@ function applyEffect(effect: ToolEffect): EffectApplyResult {
   const selection = useSelectionStore.getState()
 
   switch (effect.kind) {
-    case 'schema_op':
-      // 复用现有 applySchemaOperations（每次单 op，失败会抛，由 dispatcher catch）
-      editor.applySchemaOperations(effect.pageId, [effect.op])
-      return
     case 'page_create': {
       // editor-store.addPage 生成自己的 id 并设为 active。读 activePageId 拿真实 id。
       editor.addPage()
@@ -80,9 +76,9 @@ function buildContext(dryRun: boolean): ToolContext {
   const selection = useSelectionStore.getState()
   return {
     activePageId: editor.activePageId || null,
-    getPageSchema: (pageId) => {
+    getPageContentHtml: (pageId) => {
       const page = editor.pages.find(p => p.id === pageId)
-      return page?.schema ? structuredClone(page.schema) : null
+      return page ? page.contentHtml : null
     },
     listPages: () => editor.pages.map(p => ({ id: p.id, title: p.title })),
     selection: {
