@@ -5,6 +5,11 @@ import { eq, desc } from 'drizzle-orm'
 import { completeChat } from '../services/ai.js'
 import { ingestMaterials, type IngestionMaterialInput } from '../services/ingestion.js'
 
+// 新项目默认 sharedHead：注入 Tailwind Play CDN，保证 AI / 用户写的
+// tailwind 工具类在编辑器 iframe 里立即生效。用户可在右栏 sharedHead
+// 编辑器里改/删/换成自己的样式表。
+const DEFAULT_SHARED_HEAD = '<script src="https://cdn.tailwindcss.com"></script>'
+
 function fallbackMeta(prompt: string): { name: string; description: string } {
   const trimmed = prompt.trim()
   const firstLine = trimmed.split(/[\n。.!?！？]/)[0]?.trim() ?? trimmed
@@ -97,7 +102,7 @@ export const projectRoutes: FastifyPluginAsync = async (app) => {
       description: body.description ?? '',
       qualityPreset: body.qualityPreset ?? 'mvp',
       baasProvider: body.baasProvider ?? 'none',
-      sharedHead: body.sharedHead ?? '',
+      sharedHead: body.sharedHead ?? DEFAULT_SHARED_HEAD,
     }).returning()
 
     const ingestion = body.ingestionMaterials?.length

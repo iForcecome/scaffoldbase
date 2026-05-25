@@ -4,6 +4,7 @@ import { api } from '../services/api'
 import { useViewportStore } from './viewport-store'
 import { useSelectionStore } from './selection-store'
 import { useHistoryStore, type PageSnapshot } from './history-store'
+import { assignSfIds } from '../utils/sf-ids'
 
 export type { Device } from './viewport-store'
 export type { SelectedElement } from './selection-store'
@@ -93,17 +94,26 @@ function normalizeId(value: unknown, fallback: string): string {
 }
 
 function createGeneratedPage(id: string, title: string): Page {
-  return { id, title, layoutId: null, contentHtml: DEFAULT_PAGE_HTML }
+  return { id, title, layoutId: null, contentHtml: assignSfIds(DEFAULT_PAGE_HTML) }
 }
 
-function normalizeLoadedPages(pages: Page[]): Page[] {
+/**
+ * load 阶段：对每个 page 的 contentHtml 跑一次 assignSfIds。
+ * - 已有 sf-id 的元素保留
+ * - 新分配的会写回 contentHtml
+ * - 与原始字符串不等 → 标 dirty，下次 save 持久化到 server
+ */
+function normalizeLoadedPages(pages: Page[]): { pages: Page[]; dirtyIds: string[] } {
   const usedIds = new Set<string>()
-  return pages.map((page, index) => {
+  const dirtyIds: string[] = []
+  const normalized = pages.map((page, index) => {
+    const rawHtml = page.contentHtml ?? DEFAULT_PAGE_HTML
+    const withIds = assignSfIds(rawHtml)
     const normalizedPage: Page = {
       id: page.id,
       title: page.title ?? `页面 ${index + 1}`,
       layoutId: page.layoutId ?? null,
-      contentHtml: page.contentHtml ?? DEFAULT_PAGE_HTML,
+      contentHtml: withIds,
     }
     let id = normalizeId(normalizedPage.id, `page-${index + 1}`)
     let suffix = 2
@@ -113,8 +123,10 @@ function normalizeLoadedPages(pages: Page[]): Page[] {
     }
     usedIds.add(id)
     normalizedPage.id = id
+    if (withIds !== rawHtml) dirtyIds.push(id)
     return normalizedPage
   })
+  return { pages: normalized, dirtyIds }
 }
 
 function createPageSnapshot(page: Page): PageSnapshot {
@@ -146,9 +158,10 @@ export const useEditorStore = create<EditorState & EditorActions>()(
           s.activePageId = defaultPage.id
           s.dirtyPageIds = [defaultPage.id]
         } else {
-          s.pages = normalizeLoadedPages(pages)
-          s.activePageId = s.pages[0]?.id ?? ''
-          s.dirtyPageIds = []
+          const { pages: normalized, dirtyIds } = normalizeLoadedPages(pages)
+          s.pages = normalized
+          s.activePageId = normalized[0]?.id ?? ''
+          s.dirtyPageIds = dirtyIds
         }
       })
       useHistoryStore.getState().reset()

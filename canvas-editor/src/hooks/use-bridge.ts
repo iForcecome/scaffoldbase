@@ -4,6 +4,7 @@ import { setBridgeSender, consumePendingReveal } from '../bridge/host'
 import { useViewportStore } from '../stores/viewport-store'
 import { useSelectionStore } from '../stores/selection-store'
 import { useToolStore } from '../stores/tool-store'
+import { dispatchTools } from '../tools'
 
 function handleIframeWheel(data: Record<string, unknown>) {
   const vp = useViewportStore.getState()
@@ -119,6 +120,13 @@ export function useBridge() {
         break
       case 'edit-done': {
         useToolStore.getState().setEditingText(null)
+        // bridge 在 iframe 内只改了运行时 DOM，必须把最终文字写回 contentHtml
+        // 才会进 undo 栈、标 dirty、被保存。文字相同则 dom_set_text 自身会 no-op。
+        const id = data.id
+        const text = data.text
+        if (typeof id === 'string' && typeof text === 'string') {
+          void dispatchTools([{ name: 'dom_set_text', params: { sfId: id, text } }])
+        }
         break
       }
       case 'navigate-page': {

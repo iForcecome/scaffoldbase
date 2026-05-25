@@ -1,19 +1,12 @@
-import { useEditorStore } from '../../stores/editor-store'
 import { useToolStore } from '../../stores/tool-store'
 import { useSelectionStore } from '../../stores/selection-store'
-import { LayoutSection } from './LayoutSection'
-import { DisplaySection } from './DisplaySection'
-import { AppearanceSection } from './AppearanceSection'
-import { TypographySection } from './TypographySection'
-import { TokenSection } from './TokenSection'
-import { SpecBindingSection } from './SpecBindingSection'
 import { PagePropertiesSection } from './PagePropertiesSection'
+import { ElementInspector } from './ElementInspector'
 
 export function RightPanel() {
   const isOpen = useToolStore(s => s.rightPanelOpen)
   const selectedIds = useSelectionStore(s => s.selectedIds)
   const selectedElements = useSelectionStore(s => s.selectedElements)
-  const activePageId = useEditorStore(s => s.activePageId)
   if (!isOpen) return null
 
   const primaryId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null
@@ -37,18 +30,7 @@ export function RightPanel() {
         )}
       </div>
 
-      {!primaryId ? (
-        <PagePropertiesSection />
-      ) : (
-        <>
-          <LayoutSection />
-          <DisplaySection />
-          <AppearanceSection />
-          <TypographySection />
-          <TokenSection />
-          <SpecBindingSection pageId={activePageId} elementId={primaryId} element={primaryEl} label={displayLabel} />
-        </>
-      )}
+      {!primaryId ? <PagePropertiesSection /> : <ElementInspector />}
     </aside>
   )
 }

@@ -468,7 +468,7 @@ export function getBridgeScript(): string {
             elEdit.removeEventListener('blur', onBlur);
             elEdit.removeEventListener('keydown', onKey);
             elEdit.contentEditable = 'false';
-            respond(data, { type: 'edit-done', id: data.id });
+            respond(data, { type: 'edit-done', id: data.id, text: elEdit.textContent || '' });
           };
           var onKey = function(ev) {
             if (ev.key === 'Escape') {

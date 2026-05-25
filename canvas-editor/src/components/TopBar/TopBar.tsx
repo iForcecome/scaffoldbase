@@ -45,14 +45,29 @@ export function TopBar() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      if (!(e.metaKey || e.ctrlKey)) return
+      // input / textarea / contentEditable focus 时让浏览器走原生快捷键（撤销文本输入）
+      const ae = document.activeElement as HTMLElement | null
+      const tag = ae?.tagName?.toLowerCase()
+      const inFormField = tag === 'input' || tag === 'textarea' || (ae?.isContentEditable ?? false)
+      if (e.key === 's') {
         e.preventDefault()
         if (hasDirty && !saving) save()
+        return
+      }
+      if (e.key.toLowerCase() === 'z') {
+        if (inFormField) return
+        e.preventDefault()
+        if (e.shiftKey) {
+          if (redoStack.length > 0) redo()
+        } else {
+          if (undoStack.length > 0) undo()
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [hasDirty, saving, save])
+  }, [hasDirty, saving, save, undo, redo, undoStack.length, redoStack.length])
 
   return (
     <header className="h-12 bg-white border-b border-surface-3 flex items-center px-4 gap-3 shrink-0 z-40">

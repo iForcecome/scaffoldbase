@@ -63,6 +63,11 @@ function applyEffect(effect: ToolEffect): EffectApplyResult {
     case 'history_redo':
       editor.redo()
       return
+    case 'html_apply_ops':
+      // 改前先 pushUndo，保证 dom_* 操作可撤销
+      editor.pushUndo()
+      editor.updatePageContentHtml(effect.pageId, effect.nextHtml)
+      return
     default: {
       const _exhaustive: never = effect
       throw new Error(`Unknown effect: ${JSON.stringify(_exhaustive)}`)

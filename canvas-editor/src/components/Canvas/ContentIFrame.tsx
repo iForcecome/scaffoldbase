@@ -4,6 +4,7 @@ import { useViewportStore } from '../../stores/viewport-store'
 import { useSelectionStore } from '../../stores/selection-store'
 import { useToolStore } from '../../stores/tool-store'
 import { injectBridge } from '../../utils/inject-bridge'
+import { ensureTailwindCdn } from '../../utils/inject-tailwind'
 
 interface ContentIFrameProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
@@ -124,7 +125,7 @@ export function ContentIFrame({ iframeRef, deviceWidth }: ContentIFrameProps) {
         const composed = sharedHead
           ? pageHtml.replace('</head>', sharedHead + '</head>')
           : pageHtml
-        setSrcDoc(injectBridge(composed))
+        setSrcDoc(injectBridge(ensureTailwindCdn(composed)))
       }
     }
   }, [pageHtml, sharedHead, activePageId])

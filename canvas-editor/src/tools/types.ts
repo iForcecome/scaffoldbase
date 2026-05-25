@@ -6,7 +6,7 @@
 // 3. dry_run 是一等公民：所有 write tool 在 dry_run 下计算 effects 但不落地
 // 4. 失败逐条报告，不让一个错挡住整批
 //
-// v2 Day 0：node_* / schema_op 已删除。html_* effects 将在 β3 / β4 加入。
+// v2 β3：dom_* tools 通过 html_apply_ops effect 修改 contentHtml。
 
 /** 选区元数据，用于 tool 上下文 */
 export interface SelectionSnapshot {
@@ -37,7 +37,8 @@ export interface ToolResult<TData = unknown> {
  * - Agent / Draft 层可以拦截后审核
  * - 测试 tool 不依赖 store mock
  *
- * v2 阶段：html_* effects（页面内容编辑）将在 β4 加入。
+ * html_apply_ops：tool 已经把目标页 contentHtml 计算成 nextHtml；dispatcher
+ * 直接 set。ops 保留作为元信息（让 history / agent 知道做了什么）。
  */
 export type ToolEffect =
   | { kind: 'page_create'; page: { id: string; title: string } }
@@ -49,6 +50,20 @@ export type ToolEffect =
   | { kind: 'selection_hover'; nodeId: string | null }
   | { kind: 'history_undo' }
   | { kind: 'history_redo' }
+  | { kind: 'html_apply_ops'; pageId: string; nextHtml: string; opsMeta: HtmlOpMeta[] }
+
+/** 元信息（agent 看的"做了什么"），与 utils/html-ops.HtmlOp 同构 */
+export type HtmlOpMeta =
+  | { type: 'set_text'; sfId: string }
+  | { type: 'set_attr'; sfId: string; name: string }
+  | { type: 'remove_attr'; sfId: string; name: string }
+  | { type: 'set_style'; sfId: string; property: string }
+  | { type: 'add_class'; sfId: string }
+  | { type: 'remove_class'; sfId: string }
+  | { type: 'delete'; sfId: string }
+  | { type: 'insert_html'; targetSfId: string; position: string }
+  | { type: 'replace_html'; sfId: string }
+  | { type: 'move'; sourceSfId: string; targetSfId: string; position: string }
 
 /** 上下文：tool execute 时能拿到的"当前状态"快照 + 配置 */
 export interface ToolContext {

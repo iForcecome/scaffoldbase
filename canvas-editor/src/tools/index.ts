@@ -3,6 +3,7 @@
 
 import './page-tools'
 import './misc-tools'
+import './dom-tools'
 
 export { dispatchTools } from './dispatcher'
 export { getTool, listTools, exportToolsForAI } from './registry'

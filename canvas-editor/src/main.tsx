@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App'
 import { installStoreCoordinators } from './stores/coordinate'
+import './test-bridge'
 
 installStoreCoordinators()
 
